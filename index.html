@@ -71,6 +71,11 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;backgroun
 .top .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-block:.7rem}
 .logo{display:flex;align-items:center;gap:.55rem;text-decoration:none;color:#141210;font-family:var(--sign);font-size:1.25rem;white-space:nowrap;letter-spacing:.01em;text-transform:uppercase}
 .logo b{font-weight:400;color:#E23B2E;margin-left:-.1rem}
+.logo.pill{position:relative;border:2.5px solid #141210;border-radius:999px;padding:.32rem 1.25rem .28rem;background:#F3D9A4;overflow:hidden}
+.logo.pill::before,.logo.pill::after{content:"";position:absolute;top:-10%;bottom:-10%;width:14px;border:2px solid #D2A45E;border-radius:50%}
+.logo.pill::before{left:5px;border-right-color:transparent;border-top-color:transparent;border-bottom-color:transparent}
+.logo.pill::after{right:5px;border-left-color:transparent;border-top-color:transparent;border-bottom-color:transparent}
+@media (max-width:420px){.logo.pill{font-size:1.02rem;padding:.28rem 1.05rem .24rem}}
 footer .logo{color:#fff}
 .nav{display:flex;gap:1.5rem;align-items:center;font-weight:700;font-size:.95rem}
 .nav a{text-decoration:none;color:#3A322B}
@@ -402,10 +407,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
 
 <header class="top">
   <div class="wrap">
-    <a class="logo" href="#top" aria-label="Web Burrito home">
-      <svg width="44" height="27" viewBox="0 0 50 30" aria-hidden="true"><g transform="translate(11 16) rotate(-14)"><path d="M0 -9H28A9 9 0 0 1 28 9H0Z" fill="#F3D9A4" stroke="#141210" stroke-width="1.8"/><path d="M24 -9A5 9 0 0 0 24 9H28A9 9 0 0 0 28 -9Z" fill="#C9CED3" stroke="#141210" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 -9A5 9 0 0 0 9 9" fill="none" stroke="#D2A45E" stroke-width="1.2"/><ellipse rx="5.2" ry="9" fill="#E7BF78" stroke="#141210" stroke-width="1.8"/><ellipse rx="4" ry="7.4" fill="#FFF6E3"/><ellipse cx="1.3" cy=".4" rx="1.9" ry="2.9" fill="#3E8E41"/><circle cx="-1.8" cy="3.4" r="1.1" fill="#4A2616"/><circle cx="-.6" cy="5" r="1" fill="#4A2616"/><rect x="-1.8" y="-5.4" width="1.8" height="1.8" fill="#E23B2E"/><rect x=".6" y="-4.6" width="1.5" height="1.5" fill="#E23B2E"/><path d="M-3 -1.4q1.6 1 3.4 .2" stroke="#FFC530" stroke-width="1.2" fill="none" stroke-linecap="round"/></g></svg>
-      web<b>burrito</b>
-    </a>
+    <a class="logo pill" href="#top" aria-label="Web Burrito home">web<b>burrito</b></a>
     <nav class="nav" aria-label="Main">
       <a href="#inside">What's inside</a>
       <a href="#menu">Menu &amp; prices</a>

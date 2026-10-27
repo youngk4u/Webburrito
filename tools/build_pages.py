@@ -75,7 +75,7 @@ os.makedirs(os.path.join(ROOT, "assets"), exist_ok=True)
 open(os.path.join(ROOT, "assets", "site.css"), "w", encoding="utf-8").write(css)
 
 # ---------- shared header / footer ----------
-logo_a = index[index.index('<a class="logo"'): index.index("</a>", index.index('<a class="logo"')) + 4]
+_i = index.index('<a class="logo'); logo_a = index[_i: index.index("</a>", _i) + 4]
 logo_a = logo_a.replace('href="#top"', 'href="/"')
 footer = index[index.index("<footer>"): index.index("</footer>") + 9]
 
