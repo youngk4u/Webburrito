@@ -6,3 +6,15 @@ Website for Web Burrito: website, domain, hosting, business email and Google lis
 - `CNAME` points GitHub Pages at webburrito.com.
 
 A Qoop studio · hello@webburrito.com
+
+## Extra pages (industry pages, pricing guide, sitemap)
+
+`index.html` is edited by hand. Everything else is generated:
+
+```
+python3 tools/build_pages.py
+```
+
+- Page text lives in `tools/pages.py` (industry pages) and `tools/guide_body.html` (pricing guide).
+- The script copies the `<style>` from `index.html` into `assets/site.css`, so re-run it after changing the home page design.
+- It also rewrites `sitemap.xml`, `robots.txt` and `404.html`. Add new pages to the script so they land in the sitemap.
