@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Your website preview | Web Burrito</title>
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Figtree:wght@400;600;800&display=swap">
+<style>
+:root{--ink:#141210;--ink-2:#5B524A;--salsa:#E23B2E;--wall:#FFD23F;--page:#FFFFFF;--card:#FFFFFF;--line:#ECE4D8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#F5EFE6;--ink-2:#B9AE9F;--page:#141210;--card:#1E1A16;--line:#332C25;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F5EFE6;--ink-2:#B9AE9F;--page:#141210;--card:#1E1A16;--line:#332C25;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--page);color:var(--ink);font-family:"Figtree",ui-sans-serif,system-ui,sans-serif;font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+.bar{height:10px;background:var(--wall);border-bottom:3px solid #141210}
+main{flex:1;display:grid;place-items:center;padding:2.5rem 16px}
+.card{width:100%;max-width:420px;text-align:center}
+.logo{display:inline-flex;gap:.55rem;font-family:"Bungee",Impact,sans-serif;font-size:1.25rem;text-transform:uppercase;border:4px solid var(--ink);border-radius:999px;padding:.3rem 1.05rem .26rem;color:var(--ink);text-decoration:none}
+.logo b{font-weight:400;color:var(--salsa);margin-left:-.1rem}
+h1{font-family:"Bungee",Impact,sans-serif;font-weight:400;text-transform:uppercase;font-size:clamp(1.7rem,1.3rem + 2vw,2.3rem);line-height:1.05;margin:1.8rem 0 .7rem}
+p{margin:0;color:var(--ink-2)}
+form{margin-top:1.8rem;display:grid;gap:.8rem}
+input{font:800 1.6rem/1 "Figtree",ui-sans-serif,system-ui,sans-serif;letter-spacing:.5em;text-align:center;padding:.8rem 1rem .8rem 1.5rem;border:3px solid var(--ink);border-radius:14px;background:var(--card);color:var(--ink);width:100%;min-height:60px}
+input:focus{outline:3px solid var(--salsa);outline-offset:3px}
+button{font:800 1.05rem "Figtree",ui-sans-serif,system-ui,sans-serif;min-height:54px;border-radius:999px;border:3px solid #141210;background:var(--salsa);color:#fff;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+.err{min-height:1.5em;color:var(--salsa);font-weight:700}
+.help{margin-top:2rem;font-size:.92rem}
+.help a{color:inherit;font-weight:700}
+</style>
+</head>
+<body>
+<div class="bar"></div>
+<main>
+  <div class="card">
+    <a class="logo" href="/">web<b>burrito</b></a>
+    <h1>Your website preview</h1>
+    <p>Enter the passcode we gave you to open your site.</p>
+    <form id="f" autocomplete="off">
+      <label for="code" style="position:absolute;left:-9999px">Passcode</label>
+      <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" autofocus required>
+      <button id="go" type="submit">Open my preview</button>
+      <p class="err" id="err" role="alert"></p>
+    </form>
+    <p class="help">No passcode? Call or text <a href="tel:+13233822288">(323) 382-2288</a>.</p>
+  </div>
+</main>
+<script type="application/json" id="payload">__PAYLOAD__</script>
+<script>
+(function(){
+  var P = JSON.parse(document.getElementById('payload').textContent);
+  function bytes(s){var b=atob(s),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
+  function unlock(code){
+    var enc=new TextEncoder();
+    return crypto.subtle.importKey('raw',enc.encode(code),'PBKDF2',false,['deriveKey'])
+      .then(function(k){return crypto.subtle.deriveKey({name:'PBKDF2',salt:bytes(P.salt),iterations:P.iter,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['decrypt']);})
+      .then(function(key){return crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(P.iv)},key,bytes(P.ct));})
+      .then(function(buf){return new TextDecoder().decode(buf);});
+  }
+  function show(html){document.open();document.write(html);document.close();window.scrollTo(0,0);}
+  var f=document.getElementById('f'), input=document.getElementById('code'), go=document.getElementById('go'), err=document.getElementById('err');
+  if(!window.crypto||!crypto.subtle){err.textContent='Please open this link in Safari or Chrome.';go.disabled=true;return;}
+  var saved=null; try{saved=sessionStorage.getItem('wb-preview-code');}catch(e){}
+  if(saved){unlock(saved).then(show,function(){try{sessionStorage.removeItem('wb-preview-code');}catch(e){}});}
+  f.addEventListener('submit',function(e){
+    e.preventDefault();
+    var code=input.value.trim(); if(!code){input.focus();return;}
+    go.disabled=true; go.textContent='Opening…'; err.textContent='';
+    unlock(code).then(function(html){
+      try{sessionStorage.setItem('wb-preview-code',code);}catch(e){}
+      show(html);
+    },function(){
+      go.disabled=false; go.textContent='Open my preview';
+      err.textContent="That passcode didn't work. Try again.";
+      input.select();
+    });
+  });
+})();
+</script>
+</body>
+</html>
