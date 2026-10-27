@@ -133,6 +133,7 @@ section.band{padding-block:5.2rem}
 .item .for{color:#C9BFB1;font-size:.95rem}
 .item .after{font-size:.9rem;color:#C9BFB1}
 .item .after b{color:#fff}
+.item .fn{font-size:.8rem;color:#A99F92;margin-top:-.3rem}
 .item ul{list-style:none;padding:0;margin:0;display:grid;gap:.5rem;font-size:.97rem;flex:1}
 .item li{display:grid;grid-template-columns:18px 1fr;gap:.55rem;align-items:start}
 .item li::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--avocado);margin-top:.5rem;box-shadow:0 0 0 3px rgba(62,142,65,.25)}
