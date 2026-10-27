@@ -71,11 +71,8 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;backgroun
 .top .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-block:.7rem}
 .logo{display:flex;align-items:center;gap:.55rem;text-decoration:none;color:#141210;font-family:var(--sign);font-size:1.25rem;white-space:nowrap;letter-spacing:.01em;text-transform:uppercase}
 .logo b{font-weight:400;color:#E23B2E;margin-left:-.1rem}
-.logo.pill{position:relative;border:2.5px solid #141210;border-radius:999px;padding:.32rem 1.25rem .28rem;background:#F3D9A4;overflow:hidden}
-.logo.pill::before,.logo.pill::after{content:"";position:absolute;top:-10%;bottom:-10%;width:14px;border:2px solid #D2A45E;border-radius:50%}
-.logo.pill::before{left:5px;border-right-color:transparent;border-top-color:transparent;border-bottom-color:transparent}
-.logo.pill::after{right:5px;border-left-color:transparent;border-top-color:transparent;border-bottom-color:transparent}
-@media (max-width:420px){.logo.pill{font-size:1.02rem;padding:.28rem 1.05rem .24rem}}
+.logo.pill{border:4px solid #141210;border-radius:999px;padding:.3rem 1.05rem .26rem}
+@media (max-width:420px){.logo.pill{font-size:1.02rem;border-width:3.5px;padding:.26rem .9rem .22rem}}
 footer .logo{color:#fff}
 .nav{display:flex;gap:1.5rem;align-items:center;font-weight:700;font-size:.95rem}
 .nav a{text-decoration:none;color:#3A322B}
