@@ -3,8 +3,11 @@
 
 Usage (from the repo root):
   PREVIEW_PASSCODE=xxxx python3 tools/build_previews.py <concept sites dir> [slug ...]
+  PREVIEW_PASSCODE=xxxx python3 tools/build_previews.py <mapping.json>
 
-<concept sites dir>/<slug>/ must hold send.html (the concept page), photos.json and img/*.jpg.
+Mode 1: <concept sites dir>/<slug>/ holds send.html (the concept page), photos.json and img/*.jpg.
+Mode 2: mapping.json is {"<slug>": "<path to a single self-contained concept .html>"}; the page is
+encrypted as-is (photos stay as the links already in the page).
 Each page is encrypted (AES-256-GCM, key from the passcode via PBKDF2-SHA256), so the repo only
 holds the locked version. The passcode is never written to the repo.
 Photos are copied to <slug>/img/ so the page doesn't depend on Unsplash hotlinks.
@@ -20,13 +23,36 @@ PASS = os.environ.get("PREVIEW_PASSCODE")
 if not PASS:
     sys.exit("Set PREVIEW_PASSCODE")
 src_dir = sys.argv[1]
-slugs = sys.argv[2:] or sorted(d for d in os.listdir(src_dir) if os.path.isfile(os.path.join(src_dir, d, "send.html")))
+MAPPING = json.load(open(src_dir)) if src_dir.endswith(".json") else None
+if MAPPING is not None:
+    slugs = sys.argv[2:] or sorted(MAPPING)
+else:
+    slugs = sys.argv[2:] or sorted(d for d in os.listdir(src_dir) if os.path.isfile(os.path.join(src_dir, d, "send.html")))
+RESERVED = {"assets", "img", "tools", "brand", "guides", "industries", "restaurant-websites", "food-truck-websites",
+            "bakery-websites", "auto-repair-websites", "salon-websites", "contractor-websites"}
 
 GATE = open(os.path.join(ROOT, "tools", "preview_gate.html"), encoding="utf-8").read()
 
 def b64(b): return base64.b64encode(b).decode()
 
+def encrypt(page):
+    salt, iv = secrets.token_bytes(16), secrets.token_bytes(12)
+    key = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=ITER).derive(PASS.encode())
+    ct = AESGCM(key).encrypt(iv, page.encode("utf-8"), None)
+    return json.dumps({"v": 1, "iter": ITER, "salt": b64(salt), "iv": b64(iv), "ct": b64(ct)})
+
+def noindex(page):
+    return re.sub(r"<head([^>]*)>", lambda m: m.group(0) + '\n<meta name="robots" content="noindex,nofollow">', page, count=1)
+
 for slug in slugs:
+    assert re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", slug) and slug not in RESERVED, slug
+    if MAPPING is not None:
+        page = noindex(open(MAPPING[slug], encoding="utf-8").read())
+        out_dir = os.path.join(ROOT, slug)
+        os.makedirs(out_dir, exist_ok=True)
+        open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8").write(GATE.replace("__PAYLOAD__", encrypt(page)))
+        print("locked", slug, len(page), "bytes")
+        continue
     d = os.path.join(src_dir, slug)
     page = open(os.path.join(d, "send.html"), encoding="utf-8").read()
     photos = json.load(open(os.path.join(d, "photos.json")))
