@@ -181,6 +181,8 @@ section.band{padding-block:5.2rem}
 .extras ul{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:.5rem}
 .extras li{border:1px solid #4A433C;border-radius:999px;padding:.35rem .9rem;font-size:.92rem;color:#E9E2D6}
 .extras li b{color:var(--wall);margin-left:.35rem}
+.extras li a{color:inherit;text-decoration:none}
+.extras li:has(a):hover{border-color:var(--wall)}
 .promise{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;margin-top:2.4rem;padding-top:2rem;border-top:2px dotted #4A433C;list-style:none;padding-left:0}
 .promise li{min-width:0}
 .promise b{display:block;color:#fff}
@@ -518,7 +520,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
           <li>An update every 3 months</li>
         </ul>
         <p class="after">Then <b>$15/month</b> or <b>$150/year</b> to keep it online.</p>
-        <a class="btn btn-out" href="#contact">Order the Regular</a>
+        <a class="btn btn-out" href="https://square.link/u/q7cmKgj4" data-href-once="https://square.link/u/q7cmKgj4" data-href-monthly="https://square.link/u/5krsGlas" target="_blank" rel="noopener">Order the Regular</a>
       </article>
       <article class="item pick">
         <span class="star">House favorite</span>
@@ -533,7 +535,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
           <li>An update every month</li>
         </ul>
         <p class="after">Then <b>$25/month</b> or <b>$250/year</b> to keep it online.</p>
-        <a class="btn btn-wall" href="#contact">Order the Super</a>
+        <a class="btn btn-wall" href="https://square.link/u/rLRJjHMV" data-href-once="https://square.link/u/rLRJjHMV" data-href-monthly="https://square.link/u/ZeMy0gnz" target="_blank" rel="noopener">Order the Super</a>
       </article>
       <article class="item">
         <div class="row"><div class="nm">The Loaded<small>Completo</small></div><div><s class="was" data-once="$1,499" data-monthly="$149">$1,499</s><span class="amt" data-once="$999" data-monthly="$99">$999</span><span class="per" data-once="first year" data-monthly="a month, first year">first year</span></div></div>
@@ -549,20 +551,20 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
         </ul>
         <p class="fn">*Merchant service fee is separate.</p>
         <p class="after">Then <b>$45/month</b> or <b>$450/year</b> to keep it online.</p>
-        <a class="btn btn-out" href="#contact">Order the Loaded</a>
+        <a class="btn btn-out" href="https://square.link/u/UqKSlTKD" data-href-once="https://square.link/u/UqKSlTKD" data-href-monthly="https://square.link/u/hjuCVSag" target="_blank" rel="noopener">Order the Loaded</a>
       </article>
     </div>
     <div class="tortilla">
       <div class="amt">$100</div>
       <div><h3>Just the tortilla (design only)</h3><p>We design your site and hand you the finished files. You put it online yourself. Domain, hosting, email and updates are not included.</p></div>
-      <a class="btn" href="#contact">Order design only</a>
+      <a class="btn" href="https://square.link/u/NDszkRue" target="_blank" rel="noopener">Order design only</a>
     </div>
     <div class="extras">
       <h3>Add-ons</h3>
       <ul>
-        <li>Extra page<b>$49</b></li>
-        <li>Extra language<b>$99</b></li>
-        <li>Photo session<b>$399</b></li>
+        <li><a href="https://square.link/u/nFpzcp3k" target="_blank" rel="noopener">Extra page<b>$49</b></a></li>
+        <li><a href="https://square.link/u/WXaJ4pae" target="_blank" rel="noopener">Extra language<b>$99</b></a></li>
+        <li><a href="https://square.link/u/VkuXwAuu" target="_blank" rel="noopener">Photo session<b>$399</b></a></li>
 
         <li>Extra Google Workspace Email<b>$12/month</b></li>
       </ul>
@@ -660,6 +662,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
   function set(mode){
     once.setAttribute('aria-pressed',mode==='once'); mon.setAttribute('aria-pressed',mode==='monthly');
     document.querySelectorAll('[data-once]').forEach(function(el){el.textContent=el.getAttribute('data-'+mode);});
+    document.querySelectorAll('[data-href-once]').forEach(function(el){el.href=el.getAttribute('data-href-'+mode);});
   }
   once.addEventListener('click',function(){set('once')}); mon.addEventListener('click',function(){set('monthly')});
   document.querySelectorAll('.copy').forEach(function(b){
