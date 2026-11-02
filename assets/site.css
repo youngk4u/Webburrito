@@ -153,7 +153,10 @@ section.band{padding-block:5.2rem}
 .extras{margin-top:2rem;display:grid;gap:.7rem}
 .extras h3{font-family:var(--sign);font-weight:400;color:var(--wall);font-size:1.15rem}
 .extras ul{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:.5rem}
-.extras li{border:1px solid #4A433C;border-radius:999px;padding:.35rem .9rem;font-size:.92rem;color:#E9E2D6}
+.extras li{border:1px solid #4A433C;border-radius:999px;font-size:.92rem;color:#E9E2D6;transition:border-color .15s ease}
+.extras li a{display:block;padding:.35rem .9rem;color:inherit;text-decoration:none;border-radius:999px}
+.extras li:hover{border-color:var(--wall)}
+.extras li a:focus-visible{outline:2px solid var(--wall);outline-offset:2px}
 .extras li b{color:var(--wall);margin-left:.35rem}
 .promise{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;margin-top:2.4rem;padding-top:2rem;border-top:2px dotted #4A433C;list-style:none;padding-left:0}
 .promise li{min-width:0}
