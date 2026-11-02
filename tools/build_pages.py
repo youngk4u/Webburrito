@@ -181,13 +181,14 @@ def phone_html(p):
 
 def plans_html(pick):
     out = []
-    for i, (nm, sub, was, amt, one) in enumerate(PLANS):
+    for i, (nm, sub, yearly, monthly, one) in enumerate(PLANS):
         cls = "item pick" if i == pick else "item"
         star = '<span class="star">Most popular here</span>' if i == pick else ""
         btn = "btn btn-wall" if i == pick else "btn btn-out"
         out.append(f"""<article class="{cls}">{star}
-        <div class="row"><div class="nm">{nm}<small>{sub}</small></div><div><s class="was">{was}</s><span class="amt">{amt}</span><span class="per">first year</span></div></div>
+        <div class="row"><div class="nm">{nm}<small>{sub}</small></div><div><span class="amt">{yearly}</span><span class="per">a year</span></div></div>
         <p class="for">{one}</p>
+        <p class="after">Or <b>{monthly}/month</b>.</p>
         <a class="{btn}" href="/#contact">Get a free preview</a>
       </article>""")
     return "\n      ".join(out)
@@ -218,7 +219,7 @@ for ind in INDUSTRIES:
     trail = [("Home", "/"), ("Who we build for", "/industries/"), (ind["nav"], path)]
     service = {"@type": "Service", "@id": SITE + path + "#service", "name": ind["service"], "serviceType": "Website design",
                "provider": ORG_REF, "areaServed": {"@type": "Country", "name": "United States"}, "url": SITE + path,
-               "offers": [{"@type": "Offer", "name": nm, "price": amt.strip("$").replace(",", ""), "priceCurrency": "USD"} for nm, _, _, amt, _ in PLANS]}
+               "offers": [{"@type": "Offer", "name": nm, "price": amt.strip("$").replace(",", ""), "priceCurrency": "USD"} for nm, _, amt, _, _ in PLANS]}
     ld = [ORG, service, faq_ld(path, ind["faq"]), crumbs_ld(trail)]
     h1 = H.escape(ind["h1"]) + (f' <span>{H.escape(ind["h1b"])}</span>' if ind["h1b"] else "")
     feats = "\n      ".join(f"<li><h3>{H.escape(a)}</h3><p>{H.escape(b)}</p></li>" for a, b in ind["feats"])
@@ -245,7 +246,7 @@ for ind in INDUSTRIES:
   <div class="wrap">
     <div class="sec-head">
       <h2 id="feat-h">{H.escape(ind['feat_h'])}</h2>
-      <p>Every plan includes the website, your own .com, hosting, business email and your Google listing linked up. Here's what we build for {H.escape(ind['nav'].lower())} in particular.</p>
+      <p>Every plan includes the website, your own .com, hosting and your Google listing linked up. The Super and the Loaded add business email. Here's what we build for {H.escape(ind['nav'].lower())} in particular.</p>
     </div>
     <ul class="feats">
       {feats}
@@ -257,7 +258,7 @@ for ind in INDUSTRIES:
   <div class="wrap">
     <div class="sec-head">
       <h2 id="plans-h">Prices.</h2>
-      <p>Each price covers the first year, including hosting, your .com and email. After that, a small fee keeps it online. Or pay $0 down, monthly.</p>
+      <p>One simple price, yearly or monthly. Hosting, your .com and regular updates are included, and you pay nothing until you approve the site.</p>
     </div>
     <div class="items mini">
       {plans_html(ind['pick'])}
@@ -288,7 +289,7 @@ cards = "\n      ".join(
 ld = [ORG, crumbs_ld(trail), {"@type": "CollectionPage", "url": SITE + path, "name": "Websites for every kind of local business",
       "hasPart": [{"@type": "WebPage", "url": f"{SITE}/{o['slug']}/", "name": o["service"]} for o in INDUSTRIES]}]
 page = head("Websites for Restaurants, Shops & Local Services | Web Burrito",
-            "Web Burrito builds websites for restaurants, food trucks, bakeries, auto repair shops, salons and contractors. Your .com, hosting and email included, from $299.",
+            "Web Burrito builds websites for restaurants, food trucks, bakeries, auto repair shops, salons and contractors. Your .com and hosting included, from $20 a month.",
             path, ld) + f"""<section class="hero sub">
   <div class="wrap" style="grid-template-columns:1fr">
     <div>

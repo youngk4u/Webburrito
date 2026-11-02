@@ -3,18 +3,18 @@
 # Each industry page needs genuinely different text so Google treats it as its own page.
 
 PLANS = [
-    # name, subtitle, was, price, one-liner
-    ("The Regular", "Básico", "$499", "$299", "A clean one-page site for a shop that just needs to be found."),
-    ("The Super", "Negocio", "$999", "$499", "Up to 3 pages, a second language and your Google listing fully set up."),
-    ("The Loaded", "Completo", "$1,499", "$999", "Unlimited pages, online ordering link, photo session and review card."),
+    # name, subtitle, yearly price, monthly price, one-liner
+    ("The Regular", "Básico", "$199", "$20", "A clean one-page site for a shop that just needs to be found."),
+    ("The Super", "Negocio", "$349", "$35", "Up to 3 pages, 3 business email addresses, a second language and your Google listing fully set up."),
+    ("The Loaded", "Completo", "$699", "$69", "Unlimited pages, 10 business email addresses, online ordering link, photo session and review card."),
 ]
 
 INDUSTRIES = [
   {
     "slug": "restaurant-websites",
     "nav": "Restaurants",
-    "title": "Restaurant Website Design from $299 | Web Burrito",
-    "desc": "Restaurant websites with your menu and photos, hours, tap-to-call, directions and a link to online ordering. Your .com, hosting and email included. Free preview first.",
+    "title": "Restaurant Website Design from $20/month | Web Burrito",
+    "desc": "Restaurant websites with your menu and photos, hours, tap-to-call, directions and a link to online ordering. Your .com and hosting included. Free preview first.",
     "service": "Restaurant website design",
     "tag": "Websites for restaurants & taquerias",
     "h1": "Restaurant websites that fill tables.",
@@ -44,8 +44,8 @@ INDUSTRIES = [
   {
     "slug": "food-truck-websites",
     "nav": "Food trucks",
-    "title": "Food Truck Website Design from $299 | Web Burrito",
-    "desc": "Food truck websites with today's location, your menu, a catering and private event request form, and your Instagram. Your .com, hosting and email included. Free preview first.",
+    "title": "Food Truck Website Design from $20/month | Web Burrito",
+    "desc": "Food truck websites with today's location, your menu, a catering and private event request form, and your Instagram. Your .com and hosting included. Free preview first.",
     "service": "Food truck website design",
     "tag": "Websites for food trucks",
     "h1": "Food truck websites that say where you are.",
@@ -75,8 +75,8 @@ INDUSTRIES = [
   {
     "slug": "bakery-websites",
     "nav": "Bakeries & cafés",
-    "title": "Bakery & Café Website Design from $299 | Web Burrito",
-    "desc": "Bakery and café websites with your case and menu with photos, custom cake orders, holiday pre-orders and early hours. Your .com, hosting and email included. Free preview first.",
+    "title": "Bakery & Café Website Design from $20/month | Web Burrito",
+    "desc": "Bakery and café websites with your case and menu with photos, custom cake orders, holiday pre-orders and early hours. Your .com and hosting included. Free preview first.",
     "service": "Bakery and café website design",
     "tag": "Websites for bakeries & cafés",
     "h1": "Bakery websites that sell the cake before they walk in.",
@@ -106,8 +106,8 @@ INDUSTRIES = [
   {
     "slug": "auto-repair-websites",
     "nav": "Auto repair",
-    "title": "Auto Repair & Smog Shop Websites from $299 | Web Burrito",
-    "desc": "Websites for auto repair, smog and tire shops: services and prices, appointment and quote requests, hours, directions and reviews. Your .com, hosting and email included.",
+    "title": "Auto Repair & Smog Shop Websites from $20/month | Web Burrito",
+    "desc": "Websites for auto repair, smog and tire shops: services and prices, appointment and quote requests, hours, directions and reviews. Your .com and hosting included.",
     "service": "Auto repair shop website design",
     "tag": "Websites for auto repair & smog shops",
     "h1": "Auto repair websites that get the phone ringing.",
@@ -137,8 +137,8 @@ INDUSTRIES = [
   {
     "slug": "salon-websites",
     "nav": "Salons & barbers",
-    "title": "Salon, Barber & Nail Studio Websites from $299 | Web Burrito",
-    "desc": "Websites for hair salons, barbershops and nail studios: service menu and prices, a Book now button, gallery of your work and stylist profiles. Your .com and email included.",
+    "title": "Salon, Barber & Nail Studio Websites from $20/month | Web Burrito",
+    "desc": "Websites for hair salons, barbershops and nail studios: service menu and prices, a Book now button, gallery of your work and stylist profiles. Your .com and hosting included.",
     "service": "Salon and barbershop website design",
     "tag": "Websites for salons, barbers & nail studios",
     "h1": "Salon websites that keep the chairs full.",
@@ -168,7 +168,7 @@ INDUSTRIES = [
   {
     "slug": "contractor-websites",
     "nav": "Contractors",
-    "title": "Contractor & Home Service Websites from $299 | Web Burrito",
+    "title": "Contractor & Home Service Websites from $20/month | Web Burrito",
     "desc": "Websites for plumbers, electricians, contractors, cleaners and landscapers: services, towns you serve, quote requests, license info and before-and-after photos.",
     "service": "Contractor and home service website design",
     "tag": "Websites for contractors & home services",

@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Small Business Website Design from $299 | Web Burrito</title>
+<title>Small Business Website Design from $20/month | Web Burrito</title>
 <link rel="icon" href="https://webburrito.com/favicon.ico" sizes="48x48">
 <link rel="icon" type="image/png" sizes="192x192" href="https://webburrito.com/favicon-192.png">
 <link rel="apple-touch-icon" href="https://webburrito.com/apple-touch-icon.png">
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Small business websites from $299: your site, your own .com, hosting, business email and Google listing, rolled into one. We build a free preview first. You pay only if you love it.">
+<meta name="description" content="Small business websites from $20 a month: your site, your own .com, hosting and Google listing, rolled into one. We build a free preview first. You pay only if you love it.">
 <link rel="canonical" href="https://webburrito.com/">
 <meta name="theme-color" content="#FFD23F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Web Burrito">
 <meta property="og:url" content="https://webburrito.com/">
 <meta property="og:title" content="Web Burrito: everything your shop needs online, rolled into one">
-<meta property="og:description" content="Website, your own .com, hosting, business email and Google listing from $299. Free preview before you pay.">
+<meta property="og:description" content="Website, your own .com, hosting and Google listing from $20 a month. Free preview before you pay.">
 <meta property="og:image" content="https://webburrito.com/og.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -162,7 +162,7 @@ section.band{padding-block:5.2rem}
 .item .after{font-size:.9rem;color:#C9BFB1}
 .item .after b{color:#fff}
 .item .fn{font-size:.8rem;color:#A99F92;margin-top:-.2rem}
-.item ul{list-style:none;padding:0;margin:0;display:grid;gap:.5rem;font-size:.97rem;flex:1}
+.item ul{list-style:none;padding:0;margin:0;display:grid;gap:.5rem;font-size:.97rem;flex:1;align-content:start}
 .item li{display:grid;grid-template-columns:18px 1fr;gap:.55rem;align-items:start}
 .item li::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--avocado);margin-top:.5rem;box-shadow:0 0 0 3px rgba(62,142,65,.25)}
 .item.pick li::before{background:var(--wall);box-shadow:0 0 0 3px rgba(255,210,63,.25)}
@@ -293,25 +293,37 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
      {
       "@type": "Offer",
       "name": "The Regular",
-      "price": "299",
+      "price": "199",
       "priceCurrency": "USD",
-      "description": "One-page mobile site, .com, hosting, 1 business email, Google listing linked. First year included.",
+      "priceSpecification": [
+       {"@type": "UnitPriceSpecification", "price": "199", "priceCurrency": "USD", "unitText": "year"},
+       {"@type": "UnitPriceSpecification", "price": "20", "priceCurrency": "USD", "unitText": "month"}
+      ],
+      "description": "One-page mobile site, .com, hosting, Google listing linked. $199 a year or $20 a month.",
       "url": "https://webburrito.com/#menu"
      },
      {
       "@type": "Offer",
       "name": "The Super",
-      "price": "499",
+      "price": "349",
       "priceCurrency": "USD",
-      "description": "Up to 3 pages, 1 Google Workspace email, second language, Google listing fully set up. First year included.",
+      "priceSpecification": [
+       {"@type": "UnitPriceSpecification", "price": "349", "priceCurrency": "USD", "unitText": "year"},
+       {"@type": "UnitPriceSpecification", "price": "35", "priceCurrency": "USD", "unitText": "month"}
+      ],
+      "description": "Up to 3 pages, 3 business email addresses, second language, Google listing fully set up. $349 a year or $35 a month.",
       "url": "https://webburrito.com/#menu"
      },
      {
       "@type": "Offer",
       "name": "The Loaded",
-      "price": "999",
+      "price": "699",
       "priceCurrency": "USD",
-      "description": "Unlimited pages, online ordering link, up to 3 Google Workspace emails, photo session, review QR card. First year included.",
+      "priceSpecification": [
+       {"@type": "UnitPriceSpecification", "price": "699", "priceCurrency": "USD", "unitText": "year"},
+       {"@type": "UnitPriceSpecification", "price": "69", "priceCurrency": "USD", "unitText": "month"}
+      ],
+      "description": "Unlimited pages, online ordering link, 10 business email addresses, photo session, review QR card. $699 a year or $69 a month.",
       "url": "https://webburrito.com/#menu"
      },
      {
@@ -382,7 +394,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
      "name": "How do I pay?",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Card, Zelle, check or cash for the setup. The yearly fee can be paid once a year, and we remind you before every renewal."
+      "text": "Card, Zelle, check or cash. Pay once a year or month to month, and we remind you before every yearly renewal."
      }
     },
     {
@@ -500,55 +512,54 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
   <div class="wrap">
     <div class="sec-head">
       <h2 id="menu-h">The menu.</h2>
-      <p>Every burrito comes with the first year of hosting, your .com and business email. After that, a small fee keeps it online. You pay nothing until you approve the site.</p>
+      <p>One simple price, yearly or monthly. Every burrito includes hosting, your .com in your name and regular updates. You pay nothing until you approve the site.</p>
     </div>
     <div class="toggle" role="group" aria-label="Payment option">
-      <button type="button" id="pay-once" aria-pressed="true">Pay up front</button>
-      <button type="button" id="pay-monthly" aria-pressed="false">$0 down, monthly</button>
+      <button type="button" id="pay-once" aria-pressed="true">Pay yearly</button>
+      <button type="button" id="pay-monthly" aria-pressed="false">Pay monthly</button>
     </div>
     <div class="items">
       <article class="item">
-        <div class="row"><div class="nm">The Regular<small>Básico</small></div><div><s class="was" data-once="$499" data-monthly="$59">$499</s><span class="amt" data-once="$299" data-monthly="$35">$299</span><span class="per" data-once="first year" data-monthly="a month, first year">first year</span></div></div>
+        <div class="row"><div class="nm">The Regular<small>Básico</small></div><div><span class="amt" data-once="$199" data-monthly="$20">$199</span><span class="per" data-once="a year" data-monthly="a month">a year</span></div></div>
         <p class="for">A clean one-page site for a shop that just needs to be found.</p>
         <ul>
           <li>One-page mobile site</li>
           <li>Your .com, hosting and security</li>
-          <li>1 business email address</li>
           <li>Google listing linked, hours fixed</li>
           <li>An update every 3 months</li>
         </ul>
-        <p class="after">Then <b>$15/month</b> or <b>$150/year</b> to keep it online.</p>
+        <p class="after"><span data-once="That's $41 less than paying monthly." data-monthly="Or pay $199 a year and save $41.">That's $41 less than paying monthly.</span></p>
         <a class="btn btn-out" href="https://square.link/u/q7cmKgj4" data-href-once="https://square.link/u/q7cmKgj4" data-href-monthly="https://square.link/u/5krsGlas" target="_blank" rel="noopener">Order the Regular</a>
       </article>
       <article class="item pick">
         <span class="star">House favorite</span>
-        <div class="row"><div class="nm">The Super<small>Negocio</small></div><div><s class="was" data-once="$999" data-monthly="$99">$999</s><span class="amt" data-once="$499" data-monthly="$49">$499</span><span class="per" data-once="first year" data-monthly="a month, first year">first year</span></div></div>
+        <div class="row"><div class="nm">The Super<small>Negocio</small></div><div><span class="amt" data-once="$349" data-monthly="$35">$349</span><span class="per" data-once="a year" data-monthly="a month">a year</span></div></div>
         <p class="for">The full storefront: menu with photos, orders, and a second language.</p>
         <ul>
           <li>Everything in the Regular</li>
           <li>Up to 2 extra pages: catering, about, gallery</li>
-          <li>1 Google Workspace Email with AI</li>
+          <li>3 business email addresses</li>
           <li>Spanish, Tagalog or Korean version</li>
           <li>Google listing fully set up: photos, services</li>
           <li>An update every month</li>
         </ul>
-        <p class="after">Then <b>$25/month</b> or <b>$250/year</b> to keep it online.</p>
+        <p class="after"><span data-once="That's $71 less than paying monthly." data-monthly="Or pay $349 a year and save $71.">That's $71 less than paying monthly.</span></p>
         <a class="btn btn-wall" href="https://square.link/u/rLRJjHMV" data-href-once="https://square.link/u/rLRJjHMV" data-href-monthly="https://square.link/u/ZeMy0gnz" target="_blank" rel="noopener">Order the Super</a>
       </article>
       <article class="item">
-        <div class="row"><div class="nm">The Loaded<small>Completo</small></div><div><s class="was" data-once="$1,499" data-monthly="$149">$1,499</s><span class="amt" data-once="$999" data-monthly="$99">$999</span><span class="per" data-once="first year" data-monthly="a month, first year">first year</span></div></div>
+        <div class="row"><div class="nm">The Loaded<small>Completo</small></div><div><span class="amt" data-once="$699" data-monthly="$69">$699</span><span class="per" data-once="a year" data-monthly="a month">a year</span></div></div>
         <p class="for">For busy shops that want more pages, photos and help with reviews.</p>
         <ul>
           <li>Everything in the Super</li>
           <li>Link to online ordering (Square, Toast, Clover)*</li>
-          <li>Up to 3 Google Workspace Email with AI</li>
+          <li>10 business email addresses</li>
           <li>Unlimited pages</li>
           <li>Photo session at your shop (20 photos)</li>
           <li>Review card with QR code for the counter</li>
           <li>Unlimited small updates</li>
         </ul>
         <p class="fn">*Merchant service fee is separate.</p>
-        <p class="after">Then <b>$45/month</b> or <b>$450/year</b> to keep it online.</p>
+        <p class="after"><span data-once="That's $129 less than paying monthly." data-monthly="Or pay $699 a year and save $129.">That's $129 less than paying monthly.</span></p>
         <a class="btn btn-out" href="https://square.link/u/UqKSlTKD" data-href-once="https://square.link/u/UqKSlTKD" data-href-monthly="https://square.link/u/hjuCVSag" target="_blank" rel="noopener">Order the Loaded</a>
       </article>
     </div>
@@ -564,7 +575,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
         <li>Extra language<b>$99</b></li>
         <li>Photo session<b>$399</b></li>
 
-        <li>Extra Google Workspace Email<b>$12/month</b></li>
+        <li>Upgrade to Google Workspace Email with AI<b>$12/month</b></li>
       </ul>
     </div>
     <ul class="promise">
@@ -589,7 +600,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
           <tr><td>Do-it-yourself builders</td><td>About $25–$40 a month</td><td>You do: pick a template, write, upload photos</td></tr>
           <tr><td>Local marketing subscriptions</td><td>Often $99–$449 a month, with a contract</td><td>They do, but you rarely own the site</td></tr>
           <tr><td>Freelance designer</td><td>Usually $500–$5,000 up front</td><td>They do, then updates cost extra</td></tr>
-          <tr class="us"><td>Web Burrito</td><td>$499 for the first year, then $25 a month</td><td>We do it all, and you see it before you pay</td></tr>
+          <tr class="us"><td>Web Burrito</td><td>From $20 a month, or $199 a year</td><td>We do it all, and you see it before you pay</td></tr>
         </tbody>
       </table>
     </div>
@@ -607,7 +618,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
       <details><summary>Who owns the website and the .com?</summary><p>You do. The .com is registered in your name. If you ever leave, we hand over the domain and the site files.</p></details>
       <details><summary>Can you change my menu or hours later?</summary><p>Yes. Send a text or a photo of the change. Updates are included in every plan.</p></details>
       <details><summary>Can the site be in Spanish, Tagalog or Korean?</summary><p>Yes. The Super and the Loaded include a second language. On the Regular it's a $99 add-on.</p></details>
-      <details><summary>How do I pay?</summary><p>Card, Zelle, check or cash for the setup. The yearly fee can be paid once a year, and we remind you before every renewal.</p></details>
+      <details><summary>How do I pay?</summary><p>Card, Zelle, check or cash. Pay once a year or month to month, and we remind you before every yearly renewal.</p></details>
       <details><summary>How long does it take?</summary><p>Your preview is usually ready in a few days. Once you approve it, your site goes live within the week.</p></details>
     </div>
   </div>
