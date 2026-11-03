@@ -186,9 +186,9 @@ def plans_html(pick):
         star = '<span class="star">Most popular here</span>' if i == pick else ""
         btn = "btn btn-wall" if i == pick else "btn btn-out"
         out.append(f"""<article class="{cls}">{star}
-        <div class="row"><div class="nm">{nm}<small>{sub}</small></div><div><span class="amt">{yearly}</span><span class="per">a year</span></div></div>
+        <div class="row"><div class="nm">{nm}<small>{sub}</small></div><div><span class="amt">{monthly}</span><span class="per">a month</span></div></div>
         <p class="for">{one}</p>
-        <p class="after">Or <b>{monthly}/month</b>.</p>
+        <p class="after">Or <b>{yearly}/year</b>.</p>
         <a class="{btn}" href="/#contact">Get a free preview</a>
       </article>""")
     return "\n      ".join(out)
@@ -258,7 +258,7 @@ for ind in INDUSTRIES:
   <div class="wrap">
     <div class="sec-head">
       <h2 id="plans-h">Prices.</h2>
-      <p>One simple price, yearly or monthly. Hosting, your .com and regular updates are included, and you pay nothing until you approve the site.</p>
+      <p>One simple price, monthly or yearly. Hosting, your .com and regular updates are included, and you pay nothing until you approve the site.</p>
     </div>
     <div class="items mini">
       {plans_html(ind['pick'])}
