@@ -68,12 +68,12 @@ Data lives in Firestore: `previews/{slug}` (totals), `visits/{slug}_{session}` (
 
 You do these in the Firebase console and on your computer. GitHub Pages keeps serving webburrito.com until the last step, so nothing breaks while you set up.
 
-1. **Create the project.** Go to [console.firebase.google.com](https://console.firebase.google.com) and click *Create a project*. Google Analytics isn't needed. Note the **Project ID** (for example `webburrito-1a2b3`).
+1. **Create the project.** Go to [console.firebase.google.com](https://console.firebase.google.com) and click *Create a project*. Google Analytics isn't needed. This project's ID is `web-burrito`.
 2. **Switch to the Blaze plan** (*Upgrade*, bottom left). Cloud Functions need it. Normal use stays inside the free allowance. In Google Cloud *Billing → Budgets & alerts*, set a $5 budget alert anyway.
 3. **Create the database.** Go to *Build → Firestore Database → Create database*, choose location `nam5 (United States)` (this can't be changed later), and pick *production mode*.
 4. **Register a web app.** Open *Project settings* (gear icon) and under *Your apps* click the web icon `</>`. Give it any nickname, tick *Also set up Firebase Hosting*, and click Register. Skip the code snippet; the site loads the settings by itself.
 5. **Turn on Google sign-in.** Go to *Build → Authentication → Get started → Sign-in method → Google → Enable*, then Save.
-6. **Put the Project ID in `.firebaserc`** (replace `YOUR-FIREBASE-PROJECT-ID`) and commit it.
+6. **Project ID**: already set to `web-burrito` in `.firebaserc`.
 7. **First deploy, from your computer** (needs [Node.js](https://nodejs.org) 22 or newer):
 
    ```bash
@@ -92,9 +92,9 @@ You do these in the Firebase console and on your computer. GitHub Pages keeps se
    firebase deploy
    ```
 
-   This publishes the site, the `api` function, and the database rules. If it asks about a cleanup policy for container images, accept the default. The site is now live at `https://<project-id>.web.app`.
-8. **Make yourself an admin.** In *Firestore Database*, click *Start collection* and name it `admins`. Set the **Document ID** to the Google email you'll sign in with, in lowercase, and add any field (for example `name` = your name). Then open `https://<project-id>.web.app/admin/` and sign in. Add teammates the same way.
-9. **Test it.** Open a preview at `https://<project-id>.web.app/<slug>/` on a device that isn't signed in to `/admin/`, and send a test request from the home page form. Watch both appear on the dashboard.
+   This publishes the site, the `api` function, and the database rules. If it asks about a cleanup policy for container images, accept the default. The site is now live at `https://web-burrito.web.app`.
+8. **Make yourself an admin.** In *Firestore Database*, click *Start collection* and name it `admins`. Set the **Document ID** to the Google email you'll sign in with, in lowercase, and add any field (for example `name` = your name). Then open `https://web-burrito.web.app/admin/` and sign in. Add teammates the same way.
+9. **Test it.** Open a preview at `https://web-burrito.web.app/<slug>/` on a device that isn't signed in to `/admin/`, and send a test request from the home page form. Watch both appear on the dashboard.
 
 ### Automatic deploys (replaces GitHub Pages' auto-publish)
 
