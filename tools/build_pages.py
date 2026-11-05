@@ -14,7 +14,7 @@ from pages import PLANS, INDUSTRIES, GUIDE  # noqa: E402
 
 SITE = "https://webburrito.com"
 TODAY = date.today().isoformat()
-PHONE, PHONE_TEL, EMAIL = "(323) 382-2288", "+13233822288", "hello@webburrito.com"
+PHONE, PHONE_TEL, EMAIL = "(310) 279-8278", "+13102798278", "hello@webburrito.com"
 
 index = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
 
@@ -94,7 +94,7 @@ def header():
 
 ORG_REF = {"@id": SITE + "/#org"}
 ORG = {"@type": "Organization", "@id": SITE + "/#org", "name": "Web Burrito", "url": SITE + "/",
-       "logo": SITE + "/icon-512.png", "email": EMAIL, "telephone": "+1-323-382-2288"}
+       "logo": SITE + "/icon-512.png", "email": EMAIL, "telephone": "+1-310-279-8278"}
 
 def head(title, desc, path, ld, og_type="website"):
     url = SITE + path
