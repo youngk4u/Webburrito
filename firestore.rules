@@ -1,0 +1,63 @@
+rules_version = '2';
+
+// Who can read/write what in the Firestore database.
+// The `api` Cloud Function uses the Admin SDK, which bypasses these rules,
+// so everything the website records goes through code we control.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // You (and anyone you add) are an admin when a document named after their
+    // sign-in email exists in /admins. Add or remove admins in the Firebase console.
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/admins/$(myEmail()));
+    }
+
+    // Admin allowlist. Doc ID = lowercase email. Signed-in people may check their
+    // own entry (the dashboard uses this); nobody can change it from the site.
+    match /admins/{email} {
+      allow get: if signedIn() && myEmail() == email;
+      allow list, write: if false;
+    }
+
+    // Preview analytics (written only by the `api` function).
+    match /previews/{slug} {
+      allow read: if isAdmin();
+      allow write: if false;
+
+      match /visitors/{visitorId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+    }
+
+    match /visits/{visitId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Customer accounts (ready for the customer login). A signed-in customer can
+    // read their own record and everything under it; only admins and Cloud
+    // Functions write to it, so customers can't change their own plan or invoices.
+    // When you build pages that let customers edit something, open up just those
+    // fields or subcollections here.
+    match /users/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow write: if isAdmin();
+
+      match /{document=**} {
+        allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+        allow write: if isAdmin();
+      }
+    }
+  }
+}

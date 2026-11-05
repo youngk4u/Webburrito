@@ -11,6 +11,8 @@ encrypted as-is (photos stay as the links already in the page).
 Each page is encrypted (AES-256-GCM, key from the passcode via PBKDF2-SHA256), so the repo only
 holds the locked version. The passcode is never written to the repo.
 Photos are copied to <slug>/img/ so the page doesn't depend on Unsplash hotlinks.
+The gate page also reports opens to /api/track (see functions/), shown on /admin/.
+After editing tools/preview_gate.html, run tools/rewrap_previews.py to update existing previews.
 """
 import base64, json, os, re, secrets, shutil, sys, html as H
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -29,7 +31,8 @@ if MAPPING is not None:
 else:
     slugs = sys.argv[2:] or sorted(d for d in os.listdir(src_dir) if os.path.isfile(os.path.join(src_dir, d, "send.html")))
 RESERVED = {"assets", "img", "tools", "brand", "guides", "industries", "restaurant-websites", "food-truck-websites",
-            "bakery-websites", "auto-repair-websites", "salon-websites", "contractor-websites"}
+            "bakery-websites", "auto-repair-websites", "salon-websites", "contractor-websites",
+            "admin", "api", "account", "functions"}
 
 GATE = open(os.path.join(ROOT, "tools", "preview_gate.html"), encoding="utf-8").read()
 

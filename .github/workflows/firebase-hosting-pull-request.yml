@@ -1,0 +1,29 @@
+# Each pull request gets a temporary preview URL (expires after 7 days), posted
+# as a comment on the PR, so you can look before merging.
+name: Preview pull request on Firebase
+
+on: pull_request
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      HAS_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    steps:
+      - name: Not set up yet
+        if: env.HAS_SECRET != 'true'
+        run: echo "::notice::Skipping preview - add the FIREBASE_SERVICE_ACCOUNT secret (README, 'Automatic deploys')."
+      - uses: actions/checkout@v5
+        if: env.HAS_SECRET == 'true'
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        if: env.HAS_SECRET == 'true'
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          expires: 7d

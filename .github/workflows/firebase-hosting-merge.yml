@@ -1,0 +1,33 @@
+# Publishes the site to Firebase Hosting (webburrito.com) on every push to main,
+# the way GitHub Pages did. Functions and database rules are deployed by hand
+# (`firebase deploy --only functions,firestore`); see README.
+name: Deploy site to Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-hosting-live
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HAS_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    steps:
+      - name: Not set up yet
+        if: env.HAS_SECRET != 'true'
+        run: echo "::notice::Skipping deploy - add the FIREBASE_SERVICE_ACCOUNT secret (README, 'Automatic deploys')."
+      - uses: actions/checkout@v5
+        if: env.HAS_SECRET == 'true'
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        if: env.HAS_SECRET == 'true'
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
