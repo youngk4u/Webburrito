@@ -74,7 +74,7 @@ You do these in the Firebase console and on your computer. GitHub Pages keeps se
 4. **Register a web app.** Open *Project settings* (gear icon) and under *Your apps* click the web icon `</>`. Give it any nickname, tick *Also set up Firebase Hosting*, and click Register. Skip the code snippet; the site loads the settings by itself.
 5. **Turn on Google sign-in.** Go to *Build → Authentication → Get started → Sign-in method → Google → Enable*, then Save.
 6. **Project ID**: already set to `web-burrito` in `.firebaserc`.
-7. **First deploy, from your computer** (needs [Node.js](https://nodejs.org) 22 or newer):
+7. **First deploy, from your computer.** This needs [Node.js](https://nodejs.org) 22 or newer; check with `node --version`. On Node 21 or older, the deploy fails with `ERR_REQUIRE_ESM`.
 
    ```bash
    npm install -g firebase-tools
