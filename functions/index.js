@@ -27,7 +27,9 @@ setGlobalOptions({ region: "us-central1", maxInstances: 3 });
 initializeApp();
 const db = getFirestore();
 
-export const api = onRequest({ timeoutSeconds: 30 }, async (req, res) => {
+// invoker "public": the website (through Firebase Hosting) calls this without signing in,
+// so anyone must be allowed to invoke it. Every request is validated below.
+export const api = onRequest({ timeoutSeconds: 30, invoker: "public" }, async (req, res) => {
   res.set("Cache-Control", "no-store");
   const path = req.path.replace(/^\/api(?=\/)/, "");
 
