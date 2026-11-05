@@ -1,6 +1,7 @@
 {
   "hosting": {
     "public": ".",
+    "predeploy": ["node tools/check_deploy.mjs"],
     "ignore": [
       "firebase.json",
       "firestore.rules",
@@ -12,6 +13,8 @@
       "functions/**",
       "tools/**",
       "**/*.log",
+      "**/*.tmp",
+      "**/Icon?",
       "README.md",
       "CLAUDE.md"
     ],

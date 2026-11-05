@@ -145,7 +145,7 @@ npx firebase-tools emulators:start --project demo-webburrito
 
 Then open http://127.0.0.1:5050. On `/admin/`, use *Emulator sign-in* and add yourself to `admins` in the emulator's Firestore. Function tests: `cd functions && npm test`.
 
-The site is served from the repo root, so the `ignore` list in `firebase.json` is what keeps `.git`, `tools/`, `functions/` and this README off the web. If you add a folder that isn't part of the site, add it there too.
+The site is served from the repo root, so the `ignore` list in `firebase.json` is what keeps `.git`, `tools/`, `functions/` and this README off the web. If you add a folder that isn't part of the site, add it there too. Before every deploy, `tools/check_deploy.mjs` stops the deploy if anything that isn't in git would be published, such as a stray copy of the project in the Dropbox folder.
 
 ## Costs
 
