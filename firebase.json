@@ -12,7 +12,8 @@
       "functions/**",
       "tools/**",
       "**/*.log",
-      "README.md"
+      "README.md",
+      "CLAUDE.md"
     ],
     "rewrites": [
       { "source": "/api/**", "function": { "functionId": "api", "region": "us-central1" } }
