@@ -55,6 +55,37 @@ button:disabled{opacity:.6;cursor:wait}
 <script>
 (function(){
   var P = JSON.parse(document.getElementById('payload').textContent);
+
+  // Visit tracking: lets Web Burrito see when this preview is opened (functions/index.js).
+  // A random id per browser and per tab; no cookies, no IP address stored.
+  var slug=location.pathname.split('/')[1]||'';
+  function rid(){var s='';try{var b=crypto.getRandomValues(new Uint8Array(12));for(var i=0;i<b.length;i++)s+=('0'+b[i].toString(16)).slice(-2);}catch(e){s=Math.random().toString(36).slice(2)+Date.now().toString(36);}return s;}
+  function keep(kind,key,make){try{var st=window[kind],v=st.getItem(key);if(!v&&make){v=make();st.setItem(key,v);}return v;}catch(e){return make?make():null;}}
+  var visitor=keep('localStorage','wb-vid',rid), session=keep('sessionStorage','wb-sid',rid);
+  var ref=(/[?&]r=([^&#]*)/.exec(location.search)||[])[1]||null, tz=null;
+  try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone;}catch(e){}
+  function track(event,extra){
+    try{
+      var d={event:event,slug:slug,visitor:visitor,session:session,internal:keep('localStorage','wb-internal')==='1',
+             ref:ref&&decodeURIComponent(ref),tz:tz,referrer:String(document.referrer).slice(0,300)};
+      for(var k in extra||{})d[k]=extra[k];
+      var body=JSON.stringify(d);
+      if(navigator.sendBeacon&&navigator.sendBeacon('/api/track',body))return;
+      fetch('/api/track',{method:'POST',body:body,keepalive:true}).catch(function(){});
+    }catch(e){}
+  }
+  // After unlock: seconds spent on the site while the tab is visible, and how far they scrolled.
+  function watch(){
+    var since=Date.now(), total=0, depth=0, sent=0;
+    function scrolled(){var h=document.documentElement,room=h.scrollHeight-window.innerHeight,p=room>0?Math.round(100*(window.scrollY||h.scrollTop)/room):100;if(p>depth)depth=Math.min(100,p);}
+    function pause(){if(since){total+=Date.now()-since;since=0;}}
+    function flush(){var s=Math.round(total/1000);if(s>sent){sent=s;track('time',{seconds:s,scroll:depth});}}
+    window.addEventListener('scroll',scrolled,{passive:true});
+    document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'){pause();flush();}else if(!since){since=Date.now();}});
+    window.addEventListener('pagehide',function(){pause();flush();});
+    setTimeout(scrolled,500);
+  }
+
   function bytes(s){var b=atob(s),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
   function unlock(code){
     var enc=new TextEncoder();
@@ -70,8 +101,10 @@ button:disabled{opacity:.6;cursor:wait}
       })
       .then(function(buf){return new TextDecoder().decode(buf);});
   }
-  function show(html){document.open();document.write(html);document.close();window.scrollTo(0,0);}
+  // document.open() drops event listeners, so watch() starts after the site is written.
+  function show(html){track('unlock');document.open();document.write(html);document.close();window.scrollTo(0,0);watch();}
   var f=document.getElementById('f'), input=document.getElementById('code'), go=document.getElementById('go'), err=document.getElementById('err');
+  track('load');
   if(!window.crypto||!crypto.subtle){err.textContent='Please open this link in Safari or Chrome.';go.disabled=true;return;}
   var saved=null; try{saved=sessionStorage.getItem('wb-preview-code');}catch(e){}
   if(saved){unlock(saved).then(show,function(){try{sessionStorage.removeItem('wb-preview-code');}catch(e){}});}
@@ -83,8 +116,10 @@ button:disabled{opacity:.6;cursor:wait}
       try{sessionStorage.setItem('wb-preview-code',code);}catch(e){}
       show(html);
     },function(e){
+      var old=e&&e.message==='nods';
+      if(!old)track('fail');
       go.disabled=false; go.textContent='Open my preview';
-      err.textContent=(e&&e.message==='nods')?'Please open this link in a newer Safari or Chrome.':"That passcode didn't work. Try again.";
+      err.textContent=old?'Please open this link in a newer Safari or Chrome.':"That passcode didn't work. Try again.";
       input.select();
     });
   });
