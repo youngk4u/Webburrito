@@ -41,7 +41,7 @@ python3 tools/rewrap_previews.py
 
 The "Free preview" form on the home page saves each request to the database (`/api/lead`). New requests appear at the top of `/admin/`, with *Call* and *Text* links and a *Mark done* button. The browser tab shows how many are new, like `(2) Preview Tracker`.
 
-- If a request can't be saved (no connection, or the site is still on GitHub Pages), the form offers a text message or an email with the details already filled in, so nothing gets lost.
+- If a request can't be saved (no connection, or a server problem), the form offers a text message or an email with the details already filled in, so nothing gets lost.
 - A hidden field catches spam bots: they get a "sent" message, but nothing is saved.
 - Requests you send yourself from a device signed in to `/admin/` are tagged "you" and don't count as new.
 
@@ -66,7 +66,7 @@ Data lives in Firestore: `previews/{slug}` (totals), `visits/{slug}_{session}` (
 
 ## One-time setup
 
-You do these in the Firebase console and on your computer. GitHub Pages keeps serving webburrito.com until the last step, so nothing breaks while you set up.
+These are done for the `web-burrito` project; they're kept here in case the project ever needs to be set up again. They're done in the Firebase console and on your computer.
 
 1. **Create the project.** Go to [console.firebase.google.com](https://console.firebase.google.com) and click *Create a project*. Google Analytics isn't needed. This project's ID is `web-burrito`.
 2. **Switch to the Blaze plan** (*Upgrade*, bottom left). Cloud Functions need it. Normal use stays inside the free allowance. In Google Cloud *Billing → Budgets & alerts*, set a $5 budget alert anyway.
@@ -122,10 +122,10 @@ The domain's DNS is at **Cloudflare**. `webburrito.com` is the main address and 
    - Leave the other `TXT` records alone (SPF, DKIM, DMARC, Google verification). Cloudflare allows several `TXT` records on the same name.
    - **Don't change the `MX` records.** Those run the hello@webburrito.com email.
    - If there are any `CAA` records, add two more so Firebase's certificate can be issued: `0 issue "letsencrypt.org"` and `0 issue "pki.goog"`.
-3. Back in Firebase, click *Verify*. Wait until `webburrito.com` shows as *Connected*. It usually takes under an hour, at most a day.
+3. Back in Firebase, click *Verify*. Wait until `webburrito.com` shows as *Connected*. It usually takes under an hour, at most a day. Until then the HTTPS certificate isn't ready, so the site only opens as `http://` and the browser says "Not secure". Once it's *Connected*, Firebase serves HTTPS and redirects `http://` to it automatically.
 4. Add a second domain: `www.webburrito.com`, and choose *Redirect to webburrito.com*. In Cloudflare, replace the `www` record (now a `CNAME` to `youngk4u.github.io`) with what Firebase shows, again set to **DNS only**.
 5. In *Authentication → Settings → Authorized domains*, add `webburrito.com` and `www.webburrito.com` so admin sign-in works there.
-6. In *GitHub → Settings → Pages*, turn GitHub Pages off. After that, `CNAME` and `.nojekyll` can be deleted.
+6. In *GitHub → Settings → Pages*, turn GitHub Pages off. (`CNAME` and `.nojekyll` have already been removed.)
 
 ## Customer accounts (next)
 

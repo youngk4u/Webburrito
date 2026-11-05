@@ -12,8 +12,7 @@
       "functions/**",
       "tools/**",
       "**/*.log",
-      "README.md",
-      "CNAME"
+      "README.md"
     ],
     "rewrites": [
       { "source": "/api/**", "function": { "functionId": "api", "region": "us-central1" } }
@@ -21,7 +20,10 @@
     "headers": [
       {
         "source": "**",
-        "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }]
+        "headers": [
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Strict-Transport-Security", "value": "max-age=31536000" }
+        ]
       },
       {
         "regex": "^(?:/[^.]*|.*\\.html)$",
