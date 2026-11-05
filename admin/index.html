@@ -59,6 +59,13 @@ label.check input{width:18px;height:18px;accent-color:var(--salsa)}
 .feed .meta{grid-column:1/-1;color:var(--ink-2);font-size:.9rem}
 .feed .empty{display:block;color:var(--ink-2);padding:1.2rem 1.1rem}
 .feed li.mine{opacity:.6}
+.row.first{margin:.4rem 0 .9rem}
+.leads .msg{grid-column:1/-1;white-space:pre-wrap;overflow-wrap:anywhere;margin:.25rem 0 .1rem}
+.leads .acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.35rem}
+.leads .acts a{font-weight:800;color:var(--ink)}
+.leads .acts .dev{color:var(--ink-2);font-size:.85rem;margin-left:auto}
+.leads li.done .what{text-decoration:line-through;text-decoration-thickness:2px}
+h2 .count{color:var(--salsa)}
 .pill{display:inline-block;font-size:.75rem;font-weight:800;border-radius:999px;padding:.05rem .5rem;margin-left:.35rem;vertical-align:.1em;border:1.5px solid currentColor}
 .pill.ok{color:var(--ok)}
 .pill.bad{color:var(--salsa)}
@@ -99,7 +106,7 @@ dialog .sum{color:var(--ink-2);font-weight:600}
 
   <section id="v-signin" class="center card" hidden>
     <h1>Preview tracker</h1>
-    <p class="muted">See who opened your preview sites and how many times.</p>
+    <p class="muted">See who opened your preview sites, and the free preview requests from the home page.</p>
     <button id="signin" type="button">Sign in with Google</button>
     <p class="err" id="signin-err" role="alert"></p>
   </section>
@@ -111,6 +118,13 @@ dialog .sum{color:var(--ink-2);font-weight:600}
   </section>
 
   <section id="v-dash" hidden>
+    <div class="row first">
+      <h2>Free preview requests <span class="count" id="leads-count"></span></h2>
+      <label class="check"><input type="checkbox" id="show-done"> Show done</label>
+    </div>
+    <ol class="feed leads" id="leads" aria-live="polite"></ol>
+
+    <div class="row sec"><h2>Preview opens</h2></div>
     <div class="tiles">
       <div class="tile"><b id="t-opens">0</b><span>Times opened</span></div>
       <div class="tile"><b id="t-previews">0</b><span id="t-previews-l">Previews opened</span></div>
@@ -161,7 +175,7 @@ const V = "13.1.0";
 const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } =
   await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
-const { getFirestore, connectFirestoreEmulator, collection, doc, getDoc, query, where, orderBy, limit, onSnapshot } =
+const { getFirestore, connectFirestoreEmulator, collection, doc, getDoc, updateDoc, query, where, orderBy, limit, onSnapshot } =
   await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
 
 const $ = (id) => document.getElementById(id);
@@ -315,8 +329,48 @@ function start() {
       recent = snap.docs.map((d) => d.data());
       renderFeed();
     }, showError),
+    onSnapshot(query(collection(db, "leads"), orderBy("createdAt", "desc"), limit(200)), (snap) => {
+      leads = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderLeads();
+    }, (e) => $("leads").replaceChildren(h("li", null, h("span", { class: "empty" }, `Couldn't load requests (${e.code || e.message}).`)))),
   );
 }
+
+// ---------- free preview requests (home page form) ----------
+let leads = [];
+function renderLeads() {
+  const fresh = leads.filter((l) => l.status !== "done" && !l.internal).length;
+  $("leads-count").textContent = fresh ? `(${fresh} new)` : "";
+  document.title = `${fresh ? `(${fresh}) ` : ""}Preview Tracker | Web Burrito`;
+  const rows = $("show-done").checked ? leads : leads.filter((l) => l.status !== "done");
+  if (!rows.length) {
+    $("leads").replaceChildren(h("li", null, h("span", { class: "empty" },
+      leads.length ? "No new requests. Tick “Show done” to see older ones." : "No requests yet. They show up here when someone fills in the form on the home page.")));
+    return;
+  }
+  $("leads").replaceChildren(...rows.map((l) => {
+    const done = l.status === "done";
+    const digits = (l.phone || "").replace(/[^\d+]/g, "");
+    return h("li", { class: [done ? "done" : "", l.internal ? "mine" : ""].join(" ").trim() || null },
+      h("span", { class: "what" }, l.business, l.city ? h("span", { class: "muted", style: "font-weight:600" }, ` · ${l.city}`) : null,
+        done ? null : h("span", { class: "pill bad" }, "new"), l.internal ? h("span", { class: "pill me" }, "you") : null),
+      h("span", { class: "when", title: toDate(l.createdAt) ? fullDate.format(toDate(l.createdAt)) : "" }, ago(l.createdAt)),
+      h("span", { class: "meta" }, [l.name, l.phone, l.language].filter(Boolean).join(" · ") || "No name or phone given"),
+      l.message ? h("p", { class: "msg" }, l.message) : null,
+      h("span", { class: "acts" },
+        digits.length >= 7 ? h("a", { href: `tel:${digits}` }, "Call") : null,
+        digits.length >= 7 ? h("a", { href: `sms:${digits}` }, "Text") : null,
+        h("button", { type: "button", class: "ghost", onclick: (e) => {
+          e.target.disabled = true;
+          updateDoc(doc(db, "leads", l.id), { status: done ? "new" : "done" })
+            .catch((err) => { e.target.disabled = false; alert(`Couldn't update (${err.code || err.message}).`); });
+        } }, done ? "Mark as new" : "Mark done"),
+        h("span", { class: "dev", title: l.ua || "" }, [l.device !== "Other" ? l.device : null, l.app ? `in ${l.app}` : null, place(l.tz)].filter(Boolean).join(" · ")),
+      ),
+    );
+  }));
+}
+$("show-done").addEventListener("change", renderLeads);
 function showError(e) {
   $("feed").replaceChildren(h("li", null, h("span", { class: "empty" }, `Couldn't load data (${e.code || e.message}).`)));
 }
@@ -400,7 +454,7 @@ function openDetail(slug) {
 $("d-close").addEventListener("click", () => $("detail").close());
 $("detail").addEventListener("close", () => { stopDetail?.(); stopDetail = null; });
 $("detail").addEventListener("click", (e) => { if (e.target === $("detail")) $("detail").close(); });
-setInterval(() => { renderFeed(); renderTable(); }, 60e3); // keep "5 min ago" fresh
+setInterval(() => { renderFeed(); renderTable(); renderLeads(); }, 60e3); // keep "5 min ago" fresh
 </script>
 </body>
 </html>

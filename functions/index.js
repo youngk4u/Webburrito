@@ -2,12 +2,14 @@
 //
 // api  ->  served at https://webburrito.com/api/* through the Hosting rewrite in firebase.json.
 //   POST /api/track   beacon from the passcode gate on every preview page
+//   POST /api/lead    "Free preview" form on the home page
 //   GET  /api/ping    health check ("ok")
 //
 // Data written (read it on /admin/):
 //   previews/{slug}                     totals per preview: opens, visitors, visits, wrong passcodes, time
 //   previews/{slug}/visitors/{visitor}  one doc per device that opened the link (for unique counts)
 //   visits/{slug}_{session}             one doc per browser-tab session: device, app, when, how long
+//   leads/{id}                          one doc per "Free preview" request (status: new | done)
 // Visits from your own devices (flagged "internal" by /admin/) are kept in visits/ but
 // left out of the totals.
 
@@ -17,6 +19,7 @@ import { logger } from "firebase-functions";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { parseEvent, isBot, describeUA, language } from "./track.js";
+import { parseLead } from "./lead.js";
 
 // maxInstances caps cost if someone floods the endpoint.
 setGlobalOptions({ region: "us-central1", maxInstances: 3 });
@@ -32,7 +35,7 @@ export const api = onRequest({ timeoutSeconds: 30 }, async (req, res) => {
     res.status(200).send("ok");
     return;
   }
-  if (path !== "/track") {
+  if (path !== "/track" && path !== "/lead") {
     res.status(404).send("Not found");
     return;
   }
@@ -42,7 +45,11 @@ export const api = onRequest({ timeoutSeconds: 30 }, async (req, res) => {
   }
 
   const ua = String(req.get("user-agent") || "").slice(0, 400);
-  const event = parseEvent(readBody(req));
+  if (path === "/lead") {
+    await saveLead(req, res, ua);
+    return;
+  }
+  const event = parseEvent(readBody(req, 2048));
   if (!event || isBot(ua)) {
     res.status(204).send(""); // ignore quietly; nothing for a bot or bad client to learn
     return;
@@ -57,10 +64,39 @@ export const api = onRequest({ timeoutSeconds: 30 }, async (req, res) => {
   }
 });
 
-// sendBeacon posts text/plain; fetch() may post JSON. Accept both, max 2 KB.
-function readBody(req) {
+// The home page form. Every request that passes validation is saved (no bot filter
+// here, so a real customer is never dropped); the hidden honeypot field catches bots.
+async function saveLead(req, res, ua) {
+  const parsed = parseLead(readBody(req, 16384));
+  if (!parsed) {
+    res.status(400).json({ ok: false });
+    return;
+  }
+  if (parsed.spam) {
+    res.status(200).json({ ok: true }); // look successful so the bot moves on
+    return;
+  }
+  try {
+    const ref = await db.collection("leads").add({
+      ...parsed.lead,
+      ...describeUA(ua),
+      lang: language(req.get("accept-language")),
+      ua,
+      status: "new",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    logger.info("new lead", { id: ref.id, business: parsed.lead.business });
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    logger.error("lead failed", { err: String(err) });
+    res.status(500).json({ ok: false });
+  }
+}
+
+// sendBeacon posts text/plain; fetch() may post JSON. Accept both, up to `max` bytes.
+function readBody(req, max) {
   const raw = req.rawBody;
-  if (raw && raw.length > 2048) return null;
+  if (raw && raw.length > max) return null;
   try {
     if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body) && !raw) return req.body;
     const text = raw ? raw.toString("utf8") : typeof req.body === "string" ? req.body : "";

@@ -45,6 +45,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // "Free preview" requests from the home page (created only by the `api` function).
+    // Admins can mark one done or new again, and change nothing else.
+    match /leads/{leadId} {
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['new', 'done'];
+      allow create, delete: if false;
+    }
+
     // Customer accounts (ready for the customer login). A signed-in customer can
     // read their own record and everything under it; only admins and Cloud
     // Functions write to it, so customers can't change their own plan or invoices.

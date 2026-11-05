@@ -5,7 +5,7 @@ Website for Web Burrito: website, domain, hosting, business email and Google lis
 - `index.html` is the home page (one self-contained file).
 - Hosted on **Firebase Hosting** (`firebase.json`). The site is served straight from the repo root.
 - `functions/` is the Cloud Function behind `/api/*`; `firestore.rules` controls who can read the database.
-- `/admin/` is the private preview tracker: who opened which preview, and how many times.
+- `/admin/` is the private dashboard: free preview requests from the home page form, and who opened which preview, and how many times.
 
 A Qoop studio · hello@webburrito.com
 
@@ -37,6 +37,14 @@ After changing `tools/preview_gate.html`, update every existing preview (no pass
 python3 tools/rewrap_previews.py
 ```
 
+## Free preview requests (home page form)
+
+The "Free preview" form on the home page saves each request to the database (`/api/lead`). New requests appear at the top of `/admin/`, with *Call* and *Text* links and a *Mark done* button. The browser tab shows how many are new, like `(2) Preview Tracker`.
+
+- If a request can't be saved (no connection, or the site is still on GitHub Pages), the form offers a text message or an email with the details already filled in, so nothing gets lost.
+- A hidden field catches spam bots: they get a "sent" message, but nothing is saved.
+- Requests you send yourself from a device signed in to `/admin/` are tagged "you" and don't count as new.
+
 ## Preview tracker (`/admin/`)
 
 The passcode page on every preview reports to `/api/track` when it's opened. Sign in at `webburrito.com/admin/` to see:
@@ -54,7 +62,7 @@ Tips:
 - Add `?r=` to a link to tell links apart, e.g. `webburrito.com/mami-king/?r=sms` vs `?r=instagram`.
 - No cookies or IP addresses are stored. Each browser gets a random ID.
 
-Data lives in Firestore: `previews/{slug}` (totals), `visits/{slug}_{session}` (one per visit). Only admins can read it, and nobody can write to it from a browser.
+Data lives in Firestore: `previews/{slug}` (totals), `visits/{slug}_{session}` (one per visit) and `leads/{id}` (form requests). Only admins can read it. From the browser, the only change anyone can make is an admin marking a request done or new.
 
 ## One-time setup
 
@@ -86,7 +94,7 @@ You do these in the Firebase console and on your computer. GitHub Pages keeps se
 
    This publishes the site, the `api` function, and the database rules. If it asks about a cleanup policy for container images, accept the default. The site is now live at `https://<project-id>.web.app`.
 8. **Make yourself an admin.** In *Firestore Database*, click *Start collection* and name it `admins`. Set the **Document ID** to the Google email you'll sign in with, in lowercase, and add any field (for example `name` = your name). Then open `https://<project-id>.web.app/admin/` and sign in. Add teammates the same way.
-9. **Test it.** Open a preview at `https://<project-id>.web.app/<slug>/` on a device that isn't signed in to `/admin/`, and watch it appear on the dashboard.
+9. **Test it.** Open a preview at `https://<project-id>.web.app/<slug>/` on a device that isn't signed in to `/admin/`, and send a test request from the home page form. Watch both appear on the dashboard.
 
 ### Automatic deploys (replaces GitHub Pages' auto-publish)
 
