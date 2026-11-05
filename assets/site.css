@@ -207,6 +207,9 @@ form.ticket textarea{min-height:96px;resize:vertical}
 form.ticket .small{font-size:.85rem;color:#6B5E4C}
 .ok{display:none;background:#FFF3C4;border-radius:10px;padding:1rem;font-weight:700}
 .ok.show{display:block}
+.ticket .fail{background:#FDE3E0;color:#1B1714;border-radius:10px;padding:1rem;font-weight:700}
+.ticket .fail a{color:#B4271B}
+.ticket .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 @media (max-width:900px){.order .wrap{grid-template-columns:1fr}}
 
 footer{background:var(--board);color:#C9BFB1;font-size:.9rem}

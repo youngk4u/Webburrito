@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Preview Tracker | Web Burrito</title>
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Figtree:wght@400;600;800&display=swap">
+<style>
+:root{--ink:#141210;--ink-2:#5B524A;--salsa:#E23B2E;--wall:#FFD23F;--page:#FBF7F0;--card:#FFFFFF;--line:#E4DACB;--ok:#1F7A3A;--soft:#F3ECE0;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#F5EFE6;--ink-2:#B9AE9F;--page:#141210;--card:#1E1A16;--line:#3A3229;--ok:#6BCB86;--soft:#2A241E;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F5EFE6;--ink-2:#B9AE9F;--page:#141210;--card:#1E1A16;--line:#3A3229;--ok:#6BCB86;--soft:#2A241E;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--page);color:var(--ink);font-family:"Figtree",ui-sans-serif,system-ui,sans-serif;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+.bar{height:10px;background:var(--wall);border-bottom:3px solid #141210}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem;max-width:1100px;margin:0 auto;padding:1.1rem 16px}
+.logo{display:inline-flex;font-family:"Bungee",Impact,sans-serif;font-size:1rem;text-transform:uppercase;border:3px solid var(--ink);border-radius:999px;padding:.2rem .8rem .16rem;color:var(--ink);text-decoration:none}
+.logo b{font-weight:400;color:var(--salsa)}
+.top .title{font-weight:800}
+.top .who{margin-left:auto;color:var(--ink-2);font-size:.9rem;overflow-wrap:anywhere}
+main{max-width:1100px;margin:0 auto;padding:0 16px 4rem}
+h1,h2{font-family:"Bungee",Impact,sans-serif;font-weight:400;text-transform:uppercase;line-height:1.1;margin:0}
+h1{font-size:clamp(1.6rem,1.2rem + 2vw,2.2rem)}
+h2{font-size:1.15rem;margin:2.4rem 0 .9rem}
+p{margin:0}
+.muted{color:var(--ink-2)}
+button,.btn{font:800 .95rem "Figtree",ui-sans-serif,system-ui,sans-serif;min-height:44px;padding:0 1.1rem;border-radius:999px;border:3px solid #141210;background:var(--salsa);color:#fff;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--ink);min-height:36px;padding:0 .9rem;font-size:.85rem}
+button:focus-visible,a:focus-visible,input:focus-visible,th button:focus-visible{outline:3px solid var(--salsa);outline-offset:2px}
+.card{background:var(--card);border:2px solid var(--ink);border-radius:16px;padding:1.6rem}
+.center{max-width:460px;margin:3rem auto 0;text-align:center;display:grid;gap:1rem;justify-items:center}
+.err{color:var(--salsa);font-weight:700;min-height:1.5em}
+code{font:600 .9em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft);padding:.1em .35em;border-radius:6px;overflow-wrap:anywhere}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;margin-top:.4rem}
+.tile{background:var(--card);border:2px solid var(--ink);border-radius:16px;padding:1rem 1.1rem}
+.tile b{display:block;font-family:"Bungee",Impact,sans-serif;font-weight:400;font-size:2rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.tile span{color:var(--ink-2);font-size:.9rem;font-weight:600}
+@media (max-width:760px){.tiles{grid-template-columns:1fr 1fr}}
+.row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem 1rem}
+.row h2{margin:0}
+.sec{margin:2.4rem 0 .9rem}
+label.check{display:inline-flex;gap:.5rem;align-items:center;font-weight:600;font-size:.92rem;cursor:pointer}
+label.check input{width:18px;height:18px;accent-color:var(--salsa)}
+.me{margin-top:1rem}
+.feed{list-style:none;margin:0;padding:0;background:var(--card);border:2px solid var(--ink);border-radius:16px;overflow:hidden}
+.feed li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.15rem 1rem;padding:.8rem 1.1rem;border-top:1px solid var(--line)}
+.feed li:first-child{border-top:0}
+.feed .what{font-weight:800}
+.feed .what button{all:unset;cursor:pointer;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.feed .what button:focus-visible{outline:3px solid var(--salsa);outline-offset:2px}
+.feed .when{color:var(--ink-2);font-size:.88rem;text-align:right;white-space:nowrap}
+.feed .meta{grid-column:1/-1;color:var(--ink-2);font-size:.9rem}
+.feed .empty{display:block;color:var(--ink-2);padding:1.2rem 1.1rem}
+.feed li.mine{opacity:.6}
+.row.first{margin:.4rem 0 .9rem}
+.leads .msg{grid-column:1/-1;white-space:pre-wrap;overflow-wrap:anywhere;margin:.25rem 0 .1rem}
+.leads .acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.35rem}
+.leads .acts a{font-weight:800;color:var(--ink)}
+.leads .acts .dev{color:var(--ink-2);font-size:.85rem;margin-left:auto}
+.leads li.done .what{text-decoration:line-through;text-decoration-thickness:2px}
+h2 .count{color:var(--salsa)}
+.pill{display:inline-block;font-size:.75rem;font-weight:800;border-radius:999px;padding:.05rem .5rem;margin-left:.35rem;vertical-align:.1em;border:1.5px solid currentColor}
+.pill.ok{color:var(--ok)}
+.pill.bad{color:var(--salsa)}
+.pill.me{color:var(--ink-2)}
+.scroll{overflow-x:auto;background:var(--card);border:2px solid var(--ink);border-radius:16px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:.7rem .9rem;text-align:right;white-space:nowrap;border-top:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left;white-space:normal;min-width:11rem}
+thead th{border-top:0;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2)}
+th button{all:unset;cursor:pointer;font:inherit;color:inherit}
+th[aria-sort] button{color:var(--ink)}
+th[aria-sort="descending"] button::after{content:" ↓"}
+th[aria-sort="ascending"] button::after{content:" ↑"}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--soft)}
+td.zero{color:var(--ink-2)}
+td .name{all:unset;font-weight:800;cursor:pointer}
+dialog{width:min(720px,calc(100% - 32px));max-height:min(85vh,900px);border:3px solid var(--ink);border-radius:18px;padding:0;background:var(--page);color:var(--ink)}
+dialog::backdrop{background:rgba(20,18,16,.55)}
+dialog .head{position:sticky;top:0;background:var(--page);padding:1.1rem 1.2rem .9rem;border-bottom:2px solid var(--line);display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+dialog .head h2{margin:0;flex:1;min-width:12rem}
+dialog .body{padding:1rem 1.2rem 1.3rem;display:grid;gap:1rem}
+dialog .sum{color:var(--ink-2);font-weight:600}
+</style>
+</head>
+<body>
+<div class="bar"></div>
+<header class="top">
+  <a class="logo" href="/">web<b>burrito</b></a>
+  <span class="title">Preview tracker</span>
+  <span class="who" id="who"></span>
+  <button class="ghost" id="out" type="button" hidden>Sign out</button>
+</header>
+<main>
+  <noscript><p class="center">This page needs JavaScript.</p></noscript>
+
+  <section id="v-loading" class="center"><p class="muted">Loading…</p></section>
+
+  <section id="v-signin" class="center card" hidden>
+    <h1>Preview tracker</h1>
+    <p class="muted">See who opened your preview sites, and the free preview requests from the home page.</p>
+    <button id="signin" type="button">Sign in with Google</button>
+    <p class="err" id="signin-err" role="alert"></p>
+  </section>
+
+  <section id="v-denied" class="center card" hidden>
+    <h1>Not on the list yet</h1>
+    <p>You're signed in as <code id="denied-email"></code>, but that account isn't an admin.</p>
+    <p class="muted">In the Firebase console, open <b>Firestore Database</b>, start a collection called <code>admins</code>, and add a document whose ID is the email above (any field). Then reload this page.</p>
+  </section>
+
+  <section id="v-dash" hidden>
+    <div class="row first">
+      <h2>Free preview requests <span class="count" id="leads-count"></span></h2>
+      <label class="check"><input type="checkbox" id="show-done"> Show done</label>
+    </div>
+    <ol class="feed leads" id="leads" aria-live="polite"></ol>
+
+    <div class="row sec"><h2>Preview opens</h2></div>
+    <div class="tiles">
+      <div class="tile"><b id="t-opens">0</b><span>Times opened</span></div>
+      <div class="tile"><b id="t-previews">0</b><span id="t-previews-l">Previews opened</span></div>
+      <div class="tile"><b id="t-people">0</b><span>Different devices</span></div>
+      <div class="tile"><b id="t-week">0</b><span>Opened in last 7 days</span></div>
+    </div>
+    <label class="check me"><input type="checkbox" id="me"> Don't count my own visits from this device</label>
+
+    <div class="row sec">
+      <h2>Recent activity</h2>
+      <label class="check"><input type="checkbox" id="hide-mine" checked> Hide my visits</label>
+    </div>
+    <ol class="feed" id="feed" aria-live="polite"></ol>
+
+    <div class="row sec"><h2>All previews</h2><span class="muted" id="tbl-note"></span></div>
+    <div class="scroll">
+      <table id="tbl">
+        <thead><tr>
+          <th scope="col" data-k="name"><button type="button">Business</button></th>
+          <th scope="col" data-k="opens"><button type="button">Opened</button></th>
+          <th scope="col" data-k="visitors"><button type="button">Devices</button></th>
+          <th scope="col" data-k="visits"><button type="button">Link visits</button></th>
+          <th scope="col" data-k="failedTries"><button type="button">Wrong code</button></th>
+          <th scope="col" data-k="seconds"><button type="button">Time on site</button></th>
+          <th scope="col" data-k="lastSeenAt" aria-sort="descending"><button type="button">Last seen</button></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="muted" style="margin-top:.9rem;font-size:.9rem"><b>Opened</b> = got past the passcode (once per browser tab). <b>Link visits</b> = tapped the link, even if they never entered the passcode. Add <code>?r=name</code> to a link you send to see which link was used.</p>
+  </section>
+</main>
+
+<dialog id="detail" aria-labelledby="d-title">
+  <div class="head">
+    <h2 id="d-title"></h2>
+    <a class="btn" id="d-link" target="_blank" rel="noopener" style="min-height:36px;font-size:.85rem">Open preview</a>
+    <button class="ghost" id="d-close" type="button" autofocus>Close</button>
+  </div>
+  <div class="body">
+    <p class="sum" id="d-sum"></p>
+    <ol class="feed" id="d-list"></ol>
+  </div>
+</dialog>
+
+<script type="module">
+const V = "13.1.0";
+const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+const { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } =
+  await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+const { getFirestore, connectFirestoreEmulator, collection, doc, getDoc, updateDoc, query, where, orderBy, limit, onSnapshot } =
+  await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+
+const $ = (id) => document.getElementById(id);
+const views = ["v-loading", "v-signin", "v-denied", "v-dash"];
+const showView = (id) => views.forEach((v) => ($(v).hidden = v !== id));
+
+// ---------- tiny DOM helper (textContent only, never innerHTML) ----------
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
+  return el;
+}
+
+// ---------- formatting ----------
+const nameOf = (slug) => slug.split("-").map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(" ");
+const toDate = (ts) => (ts && ts.toDate ? ts.toDate() : null);
+const fullDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+const shortDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+function ago(ts) {
+  const d = toDate(ts);
+  if (!d) return "—";
+  const s = (Date.now() - d.getTime()) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 172800) return "yesterday";
+  if (s < 7 * 86400) return `${Math.floor(s / 86400)} days ago`;
+  return shortDate.format(d);
+}
+function dur(sec) {
+  sec = Math.round(sec || 0);
+  if (!sec) return "—";
+  if (sec < 60) return `${sec}s`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ${String(sec % 60).padStart(2, "0")}s`;
+  return `${Math.floor(sec / 3600)}h ${String(Math.floor((sec % 3600) / 60)).padStart(2, "0")}m`;
+}
+const place = (tz) => (tz && tz.includes("/") ? tz.split("/").pop().replace(/_/g, " ") : tz);
+function visitMeta(v) {
+  return [
+    v.device && v.device !== "Other" ? v.device : null,
+    v.app ? `in ${v.app}` : v.browser && v.browser !== "Other" ? v.browser : null,
+    place(v.tz),
+    v.lang,
+    v.ref ? `link “${v.ref}”` : null,
+    v.referrer ? `from ${v.referrer}` : null,
+    v.seconds ? `${dur(v.seconds)} on site` : null,
+    v.unlocked && v.scroll ? `scrolled ${v.scroll}%` : null,
+  ].filter(Boolean).join(" · ");
+}
+function visitStatus(v) {
+  if (v.unlocked) return h("span", { class: "pill ok" }, "opened");
+  if (v.failedTries) return h("span", { class: "pill bad" }, `wrong passcode ×${v.failedTries}`);
+  return h("span", { class: "pill" }, "saw passcode screen");
+}
+
+// ---------- "this device is mine" flag (read by the preview gate) ----------
+const ME_KEY = "wb-internal";
+const getMe = () => { try { return localStorage.getItem(ME_KEY); } catch { return null; } };
+const setMe = (on) => { try { localStorage.setItem(ME_KEY, on ? "1" : "0"); } catch {} };
+
+// ---------- Firebase ----------
+const local = ["localhost", "127.0.0.1"].includes(location.hostname);
+let config;
+try {
+  const r = await fetch("/__/firebase/init.json");
+  if (!r.ok) throw new Error(r.status);
+  config = await r.json();
+} catch {
+  showView("v-signin");
+  $("signin").disabled = true;
+  $("signin-err").textContent = "Firebase config not found. Register a web app for this project (see README, step 4).";
+  throw new Error("no firebase config");
+}
+const app = initializeApp(config);
+const auth = getAuth(app);
+const db = getFirestore(app);
+if (local) {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  // Local emulators only: sign in as any email without the Google popup.
+  // (The Auth emulator accepts this unsigned token; real Firebase rejects it.)
+  const email = h("input", { id: "emu-email", type: "email", value: "you@example.com", "aria-label": "Emulator email",
+    style: "font:inherit;padding:.5rem .8rem;border:2px solid var(--ink);border-radius:10px;width:100%;max-width:280px" });
+  const go = h("button", { id: "emu-signin", type: "button", class: "ghost", onclick: () =>
+    signInWithCredential(auth, GoogleAuthProvider.credential(JSON.stringify({ sub: email.value, email: email.value, email_verified: true })))
+      .catch((e) => ($("signin-err").textContent = e.code || e.message)) }, "Emulator sign-in");
+  $("signin").after(email, go);
+}
+
+$("signin").addEventListener("click", async () => {
+  $("signin-err").textContent = "";
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (e) {
+    const msg = {
+      "auth/popup-blocked": "Your browser blocked the sign-in window. Allow pop-ups for this site and try again.",
+      "auth/popup-closed-by-user": "",
+      "auth/cancelled-popup-request": "",
+      "auth/unauthorized-domain": `Add ${location.hostname} in Firebase → Authentication → Settings → Authorized domains.`,
+      "auth/operation-not-allowed": "Turn on Google in Firebase → Authentication → Sign-in method.",
+    }[e.code];
+    $("signin-err").textContent = msg ?? `Sign-in failed (${e.code || e.message}).`;
+  }
+});
+$("out").addEventListener("click", () => signOut(auth));
+
+let stop = [];
+onAuthStateChanged(auth, async (user) => {
+  stop.forEach((f) => f());
+  stop = [];
+  $("out").hidden = !user;
+  $("who").textContent = user ? user.email || "" : "";
+  if (!user) return showView("v-signin");
+
+  const email = (user.email || "").toLowerCase();
+  let admin = false;
+  try {
+    admin = user.emailVerified && (await getDoc(doc(db, "admins", email))).exists();
+  } catch {}
+  if (!admin) {
+    $("denied-email").textContent = email || "(no email on this account)";
+    return showView("v-denied");
+  }
+  if (getMe() == null) setMe(true); // first visit from this device: don't count it from now on
+  $("me").checked = getMe() === "1";
+  showView("v-dash");
+  start();
+});
+$("me").addEventListener("change", (e) => setMe(e.target.checked));
+
+// ---------- dashboard ----------
+let previews = [];
+let recent = [];
+let sortKey = "lastSeenAt";
+let sortDir = -1;
+
+function start() {
+  stop.push(
+    onSnapshot(query(collection(db, "previews"), orderBy("lastSeenAt", "desc")), (snap) => {
+      previews = snap.docs.map((d) => ({ slug: d.id, ...d.data() }));
+      renderTiles();
+      renderTable();
+    }, showError),
+    onSnapshot(query(collection(db, "visits"), orderBy("lastSeenAt", "desc"), limit(60)), (snap) => {
+      recent = snap.docs.map((d) => d.data());
+      renderFeed();
+    }, showError),
+    onSnapshot(query(collection(db, "leads"), orderBy("createdAt", "desc"), limit(200)), (snap) => {
+      leads = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderLeads();
+    }, (e) => $("leads").replaceChildren(h("li", null, h("span", { class: "empty" }, `Couldn't load requests (${e.code || e.message}).`)))),
+  );
+}
+
+// ---------- free preview requests (home page form) ----------
+let leads = [];
+function renderLeads() {
+  const fresh = leads.filter((l) => l.status !== "done" && !l.internal).length;
+  $("leads-count").textContent = fresh ? `(${fresh} new)` : "";
+  document.title = `${fresh ? `(${fresh}) ` : ""}Preview Tracker | Web Burrito`;
+  const rows = $("show-done").checked ? leads : leads.filter((l) => l.status !== "done");
+  if (!rows.length) {
+    $("leads").replaceChildren(h("li", null, h("span", { class: "empty" },
+      leads.length ? "No new requests. Tick “Show done” to see older ones." : "No requests yet. They show up here when someone fills in the form on the home page.")));
+    return;
+  }
+  $("leads").replaceChildren(...rows.map((l) => {
+    const done = l.status === "done";
+    const digits = (l.phone || "").replace(/[^\d+]/g, "");
+    return h("li", { class: [done ? "done" : "", l.internal ? "mine" : ""].join(" ").trim() || null },
+      h("span", { class: "what" }, l.business, l.city ? h("span", { class: "muted", style: "font-weight:600" }, ` · ${l.city}`) : null,
+        done ? null : h("span", { class: "pill bad" }, "new"), l.internal ? h("span", { class: "pill me" }, "you") : null),
+      h("span", { class: "when", title: toDate(l.createdAt) ? fullDate.format(toDate(l.createdAt)) : "" }, ago(l.createdAt)),
+      h("span", { class: "meta" }, [l.name, l.phone, l.language].filter(Boolean).join(" · ") || "No name or phone given"),
+      l.message ? h("p", { class: "msg" }, l.message) : null,
+      h("span", { class: "acts" },
+        digits.length >= 7 ? h("a", { href: `tel:${digits}` }, "Call") : null,
+        digits.length >= 7 ? h("a", { href: `sms:${digits}` }, "Text") : null,
+        h("button", { type: "button", class: "ghost", onclick: (e) => {
+          e.target.disabled = true;
+          updateDoc(doc(db, "leads", l.id), { status: done ? "new" : "done" })
+            .catch((err) => { e.target.disabled = false; alert(`Couldn't update (${err.code || err.message}).`); });
+        } }, done ? "Mark as new" : "Mark done"),
+        h("span", { class: "dev", title: l.ua || "" }, [l.device !== "Other" ? l.device : null, l.app ? `in ${l.app}` : null, place(l.tz)].filter(Boolean).join(" · ")),
+      ),
+    );
+  }));
+}
+$("show-done").addEventListener("change", renderLeads);
+function showError(e) {
+  $("feed").replaceChildren(h("li", null, h("span", { class: "empty" }, `Couldn't load data (${e.code || e.message}).`)));
+}
+
+function renderTiles() {
+  const sum = (k) => previews.reduce((n, p) => n + (p[k] || 0), 0);
+  const weekAgo = Date.now() - 7 * 86400e3;
+  const opened = previews.filter((p) => p.opens > 0).length;
+  $("t-opens").textContent = sum("opens");
+  $("t-previews").textContent = opened;
+  $("t-previews-l").textContent = `Previews opened (of ${previews.length} visited)`;
+  $("t-people").textContent = sum("visitors");
+  $("t-week").textContent = previews.filter((p) => (toDate(p.lastOpenedAt)?.getTime() || 0) > weekAgo).length;
+}
+
+function renderFeed() {
+  const hide = $("hide-mine").checked;
+  const rows = recent.filter((v) => !(hide && v.internal)).slice(0, 40);
+  if (!rows.length) {
+    $("feed").replaceChildren(h("li", null, h("span", { class: "empty" }, "No visits yet. When someone taps a preview link, it shows up here.")));
+    return;
+  }
+  $("feed").replaceChildren(...rows.map((v) => h("li", { class: v.internal ? "mine" : null },
+    h("span", { class: "what" }, h("button", { type: "button", onclick: () => openDetail(v.slug) }, nameOf(v.slug)), visitStatus(v),
+      v.internal ? h("span", { class: "pill me" }, "you") : null),
+    h("span", { class: "when", title: toDate(v.lastSeenAt) ? fullDate.format(toDate(v.lastSeenAt)) : "" }, ago(v.lastSeenAt)),
+    h("span", { class: "meta", title: v.ua || "" }, visitMeta(v) || "—"),
+  )));
+}
+$("hide-mine").addEventListener("change", renderFeed);
+
+function renderTable() {
+  const val = (p) => (sortKey === "name" ? p.slug : sortKey.endsWith("At") ? toDate(p[sortKey])?.getTime() || 0 : p[sortKey] || 0);
+  const rows = [...previews].sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sortDir);
+  document.querySelectorAll("#tbl th").forEach((th) =>
+    th.dataset.k === sortKey ? th.setAttribute("aria-sort", sortDir < 0 ? "descending" : "ascending") : th.removeAttribute("aria-sort"));
+  const num = (n) => h("td", { class: n ? null : "zero" }, n || 0);
+  $("tbl").tBodies[0].replaceChildren(...rows.map((p) => h("tr", { onclick: () => openDetail(p.slug) },
+    h("td", null, h("button", { class: "name", type: "button" }, nameOf(p.slug))),
+    num(p.opens), num(p.visitors), num(p.visits), num(p.failedTries),
+    h("td", { class: p.seconds ? null : "zero" }, dur(p.seconds)),
+    h("td", { title: toDate(p.lastSeenAt) ? fullDate.format(toDate(p.lastSeenAt)) : "" }, ago(p.lastSeenAt)),
+  )));
+  $("tbl-note").textContent = previews.length ? `${previews.length} with visits` : "No visits yet";
+}
+document.querySelectorAll("#tbl th button").forEach((b) => b.addEventListener("click", () => {
+  const k = b.parentElement.dataset.k;
+  sortDir = k === sortKey ? -sortDir : k === "name" ? 1 : -1;
+  sortKey = k;
+  renderTable();
+}));
+
+// ---------- one preview's visits ----------
+let stopDetail = null;
+function openDetail(slug) {
+  stopDetail?.();
+  const p = previews.find((x) => x.slug === slug) || {};
+  $("d-title").textContent = nameOf(slug);
+  $("d-link").href = `/${slug}/`;
+  $("d-sum").textContent = [
+    `Opened ${p.opens || 0}×`,
+    `${p.visitors || 0} device${p.visitors === 1 ? "" : "s"}`,
+    p.firstOpenedAt ? `first opened ${fullDate.format(toDate(p.firstOpenedAt))}` : "never opened",
+  ].join(" · ");
+  $("d-list").replaceChildren(h("li", null, h("span", { class: "empty" }, "Loading…")));
+  stopDetail = onSnapshot(
+    query(collection(db, "visits"), where("slug", "==", slug), orderBy("startedAt", "desc"), limit(100)),
+    (snap) => {
+      const rows = snap.docs.map((d) => d.data());
+      $("d-list").replaceChildren(...(rows.length ? rows.map((v) => h("li", { class: v.internal ? "mine" : null },
+        h("span", { class: "what" }, toDate(v.startedAt) ? fullDate.format(toDate(v.startedAt)) : "—", visitStatus(v),
+          v.internal ? h("span", { class: "pill me" }, "you") : null),
+        h("span", { class: "when" }, v.loads > 1 ? `${v.loads} page loads` : ""),
+        h("span", { class: "meta", title: v.ua || "" }, visitMeta(v) || "—"),
+      )) : [h("li", null, h("span", { class: "empty" }, "No visits yet."))]));
+    },
+    (e) => $("d-list").replaceChildren(h("li", null, h("span", { class: "empty" }, `Couldn't load visits (${e.code || e.message}).`))),
+  );
+  if (!$("detail").open) $("detail").showModal();
+}
+$("d-close").addEventListener("click", () => $("detail").close());
+$("detail").addEventListener("close", () => { stopDetail?.(); stopDetail = null; });
+$("detail").addEventListener("click", (e) => { if (e.target === $("detail")) $("detail").close(); });
+setInterval(() => { renderFeed(); renderTable(); renderLeads(); }, 60e3); // keep "5 min ago" fresh
+</script>
+</body>
+</html>

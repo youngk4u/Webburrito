@@ -1,0 +1,60 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "firestore.indexes.json",
+      "**/.*",
+      "**/.*/**",
+      "**/node_modules/**",
+      "**/__pycache__/**",
+      "functions/**",
+      "tools/**",
+      "**/*.log",
+      "README.md"
+    ],
+    "rewrites": [
+      { "source": "/api/**", "function": { "functionId": "api", "region": "us-central1" } }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Strict-Transport-Security", "value": "max-age=31536000" }
+        ]
+      },
+      {
+        "regex": "^(?:/[^.]*|.*\\.html)$",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/admin/**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+          { "key": "X-Frame-Options", "value": "DENY" }
+        ]
+      }
+    ]
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git", "*.local", "firebase-debug.log", "test"]
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "auth": { "port": 9099 },
+    "functions": { "port": 5001 },
+    "firestore": { "port": 8080 },
+    "hosting": { "port": 5050 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}

@@ -3,3 +3,8 @@ Icon?
 .dropbox
 .dropbox.attr
 *.tmp
+node_modules/
+__pycache__/
+.firebase/
+*.log
+*.local

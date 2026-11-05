@@ -233,6 +233,9 @@ form.ticket textarea{min-height:96px;resize:vertical}
 form.ticket .small{font-size:.85rem;color:#6B5E4C}
 .ok{display:none;background:#FFF3C4;border-radius:10px;padding:1rem;font-weight:700}
 .ok.show{display:block}
+.ticket .fail{background:#FDE3E0;color:#1B1714;border-radius:10px;padding:1rem;font-weight:700}
+.ticket .fail a{color:#B4271B}
+.ticket .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 @media (max-width:900px){.order .wrap{grid-template-columns:1fr}}
 
 footer{background:var(--board);color:#C9BFB1;font-size:.9rem}
@@ -650,9 +653,11 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
       <label for="f-lang">Preferred language
         <select id="f-lang" name="language"><option>English</option><option>Español</option><option>Tagalog</option><option>한국어</option></select>
       </label>
-      <label for="f-msg">Anything we should know?<textarea id="f-msg" name="message" placeholder="Your menu, your hours, what makes your shop special"></textarea></label>
-      <button class="btn btn-red" type="submit">Build my free preview</button>
+      <label for="f-msg">Anything we should know?<textarea id="f-msg" name="message" maxlength="2000" placeholder="Your menu, your hours, what makes your shop special"></textarea></label>
+      <div class="hp" aria-hidden="true"><label for="f-hp">Leave this empty<input id="f-hp" name="hp_note" tabindex="-1" autocomplete="off"></label></div>
+      <button class="btn btn-red" type="submit" id="req-go">Build my free preview</button>
       <p class="ok" id="ok" role="status">Order in. We'll text you when your preview is ready.</p>
+      <p class="fail" id="fail" role="alert" hidden>That didn't go through. <a id="fail-sms" href="sms:+13233822288">Text it to us</a> or <a id="fail-mail" href="mailto:hello@webburrito.com">email it</a> instead. Your details are filled in for you.</p>
       <p class="small">We'll only use your number to send your preview. No spam, ever.</p>
     </form>
   </div>
@@ -683,12 +688,37 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
       try{navigator.clipboard.writeText(t).then(done,function(){b.textContent=t})}catch(e){b.textContent=t}
     });
   });
-  document.getElementById('req').addEventListener('submit',function(e){
+  // Free preview request -> /api/lead (saved to the database, listed on /admin/).
+  // If it can't be sent, offer a pre-filled text message or email instead.
+  var req=document.getElementById('req'), ok=document.getElementById('ok'), fail=document.getElementById('fail'), go=document.getElementById('req-go'), sending=false;
+  req.addEventListener('submit',function(e){
     e.preventDefault();
+    if(sending)return;
     var biz=document.getElementById('f-biz');
     if(!biz.value.trim()){biz.focus();biz.setAttribute('aria-invalid','true');return;}
     biz.removeAttribute('aria-invalid');
-    document.getElementById('ok').classList.add('show');
+    var d={page:location.pathname,ref:(/[?&]r=([^&#]*)/.exec(location.search)||[])[1]||null};
+    ['business','city','name','phone','language','message','hp_note'].forEach(function(k){d[k]=req.elements[k].value.trim();});
+    try{d.visitor=localStorage.getItem('wb-vid');d.internal=localStorage.getItem('wb-internal')==='1';}catch(x){}
+    try{d.tz=Intl.DateTimeFormat().resolvedOptions().timeZone;}catch(x){}
+    sending=true; go.disabled=true; go.textContent='Sending…'; ok.classList.remove('show'); fail.hidden=true;
+    var ac=window.AbortController?new AbortController():null, timer=setTimeout(function(){if(ac)ac.abort();},15000);
+    function done(){clearTimeout(timer);sending=false;go.disabled=false;go.textContent='Build my free preview';}
+    fetch('/api/lead',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d),signal:ac?ac.signal:undefined})
+      .then(function(r){if(!r.ok)throw new Error(r.status);done();req.reset();ok.classList.add('show');})
+      .catch(function(){
+        done();
+        var lines=['Free preview request','Business: '+d.business];
+        if(d.city)lines.push('City: '+d.city);
+        if(d.name)lines.push('Name: '+d.name);
+        if(d.phone)lines.push('Phone: '+d.phone);
+        lines.push('Language: '+d.language);
+        if(d.message)lines.push(d.message);
+        var body=encodeURIComponent(lines.join('\n'));
+        document.getElementById('fail-sms').href='sms:+13233822288?&body='+body;
+        document.getElementById('fail-mail').href='mailto:hello@webburrito.com?subject='+encodeURIComponent('Free preview: '+d.business)+'&body='+body;
+        fail.hidden=false;
+      });
   });
 })();
 </script>
