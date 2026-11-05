@@ -112,15 +112,20 @@ firebase deploy --only functions,firestore
 
 ### Move webburrito.com to Firebase (do this last)
 
-1. In *Hosting → Add custom domain*, add `webburrito.com`. Then add `www.webburrito.com` and choose *Redirect to webburrito.com*.
-2. At your domain's DNS provider:
-   - Delete the four GitHub Pages `A` records (`185.199.108.153`, `.109.153`, `.110.153`, `.111.153`) and any `AAAA` records starting `2606:50c0`.
-   - Add the records Firebase shows you.
-   - Change `www` (now a CNAME to `youngk4u.github.io`) to what Firebase shows.
-   - **Don't change the MX, SPF or DKIM records.** Those run the hello@webburrito.com email.
-3. Wait until Firebase shows the domain as *Connected*. It usually takes under an hour, at most a day, and the HTTPS certificate is set up automatically.
-4. In *Authentication → Settings → Authorized domains*, make sure `webburrito.com` is listed so admin sign-in works there.
-5. In *GitHub → Settings → Pages*, turn GitHub Pages off. After that, `CNAME` and `.nojekyll` can be deleted.
+The domain's DNS is at **Cloudflare**. `webburrito.com` is the main address and `www.webburrito.com` redirects to it, the same as on GitHub Pages.
+
+1. In the Firebase console, go to *Hosting → Add custom domain* and enter `webburrito.com`. If it offers **Advanced setup**, choose it: the HTTPS certificate is then created before you switch, so there's no gap. Keep the page open; it lists the DNS records to add.
+2. In Cloudflare, open `webburrito.com` and go to **DNS → Records**:
+   - Delete the GitHub Pages records for `webburrito.com`: the four `A` records (`185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`) and any `AAAA` records starting `2606:50c0`.
+   - Add exactly the records Firebase shows: usually one `A` record and one `TXT` record (`hosting-site=web-burrito`), plus a `TXT` for the certificate with Advanced setup.
+   - **Set the Proxy status of the Firebase `A` record to *DNS only* (grey cloud).** If it's proxied (orange cloud), Firebase can't verify the domain or issue the certificate.
+   - Leave the other `TXT` records alone (SPF, DKIM, DMARC, Google verification). Cloudflare allows several `TXT` records on the same name.
+   - **Don't change the `MX` records.** Those run the hello@webburrito.com email.
+   - If there are any `CAA` records, add two more so Firebase's certificate can be issued: `0 issue "letsencrypt.org"` and `0 issue "pki.goog"`.
+3. Back in Firebase, click *Verify*. Wait until `webburrito.com` shows as *Connected*. It usually takes under an hour, at most a day.
+4. Add a second domain: `www.webburrito.com`, and choose *Redirect to webburrito.com*. In Cloudflare, replace the `www` record (now a `CNAME` to `youngk4u.github.io`) with what Firebase shows, again set to **DNS only**.
+5. In *Authentication → Settings → Authorized domains*, add `webburrito.com` and `www.webburrito.com` so admin sign-in works there.
+6. In *GitHub → Settings → Pages*, turn GitHub Pages off. After that, `CNAME` and `.nojekyll` can be deleted.
 
 ## Customer accounts (next)
 
