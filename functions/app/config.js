@@ -4,13 +4,33 @@
 // ever sees them:   firebase functions:secrets:set ANTHROPIC_API_KEY
 // The other values have defaults below and can be changed in functions/.env (see README).
 
+import { existsSync, readFileSync } from "node:fs";
 import { defineSecret, defineString, defineInt } from "firebase-functions/params";
 
-export const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
-export const SQUARE_ACCESS_TOKEN = defineSecret("SQUARE_ACCESS_TOKEN");
-export const SQUARE_WEBHOOK_SIGNATURE_KEY = defineSecret("SQUARE_WEBHOOK_SIGNATURE_KEY");
-export const CLOUDFLARE_API_TOKEN = defineSecret("CLOUDFLARE_API_TOKEN");
-export const SECRETS = [ANTHROPIC_API_KEY, SQUARE_ACCESS_TOKEN, SQUARE_WEBHOOK_SIGNATURE_KEY, CLOUDFLARE_API_TOKEN];
+// The platform is off (its functions aren't deployed and its keys aren't asked for) until
+// PLATFORM=on in functions/.env. A deploy works out which functions exist before it loads .env
+// into the environment, so the file is read here; a running function has it in process.env.
+function platformOn() {
+  if (process.env.PLATFORM) return process.env.PLATFORM === "on";
+  let value = "off";
+  // .env.local is only for local tests with the emulator.
+  for (const name of [".env", ...(process.env.FUNCTIONS_EMULATOR === "true" ? [".env.local"] : [])]) {
+    const file = new URL(`../${name}`, import.meta.url);
+    if (!existsSync(file)) continue;
+    const m = /^[ \t]*PLATFORM[ \t]*=[ \t]*"?([a-z]+)"?[ \t]*$/m.exec(readFileSync(file, "utf8"));
+    if (m) value = m[1];
+  }
+  return value === "on";
+}
+export const PLATFORM_ON = platformOn();
+
+// Defined only when the platform is on: a deploy asks for every secret that's defined.
+const secret = (name) => (PLATFORM_ON ? defineSecret(name) : null);
+export const ANTHROPIC_API_KEY = secret("ANTHROPIC_API_KEY");
+export const SQUARE_ACCESS_TOKEN = secret("SQUARE_ACCESS_TOKEN");
+export const SQUARE_WEBHOOK_SIGNATURE_KEY = secret("SQUARE_WEBHOOK_SIGNATURE_KEY");
+export const CLOUDFLARE_API_TOKEN = secret("CLOUDFLARE_API_TOKEN");
+export const SECRETS = PLATFORM_ON ? [ANTHROPIC_API_KEY, SQUARE_ACCESS_TOKEN, SQUARE_WEBHOOK_SIGNATURE_KEY, CLOUDFLARE_API_TOKEN] : [];
 
 // "production" for real money, "sandbox" to test with Square's test cards.
 export const SQUARE_ENVIRONMENT = defineString("SQUARE_ENVIRONMENT", { default: "sandbox" });
@@ -31,8 +51,18 @@ export const FREE_BUILDS = defineInt("FREE_BUILDS", { default: 3 });
 export const FREE_BUILDS_PER_DAY_TOTAL = defineInt("FREE_BUILDS_PER_DAY_TOTAL", { default: 150 });
 // Most a domain may cost to register (USD). Premium domains are always refused.
 export const MAX_DOMAIN_PRICE = defineInt("MAX_DOMAIN_PRICE", { default: 15 });
+// Most domains bought automatically per day (a guard against stolen cards). Past this, a
+// launch waits for an admin's "Retry launch" on /admin/.
+export const MAX_DOMAINS_PER_DAY = defineInt("MAX_DOMAINS_PER_DAY", { default: 10 });
+// In test mode only admins and these emails (comma-separated) can "pay" with test cards.
+export const TEST_EMAILS = defineString("TEST_EMAILS", { default: "" });
+// Where the passcode previews live (the server reads them to start a customer's site).
+export const SITE_ORIGIN = defineString("SITE_ORIGIN", { default: "https://webburrito.com" });
 // Days a site stays up after a failed payment before it's taken offline.
 export const PAST_DUE_GRACE_DAYS = defineInt("PAST_DUE_GRACE_DAYS", { default: 14 });
+// Seconds between launch steps that wait on something (payment, domain registration). Errors
+// back off from this: 1x, 2x, 4x ... up to 60x.
+export const LAUNCH_RETRY_SECONDS = defineInt("LAUNCH_RETRY_SECONDS", { default: 60 });
 
 // Base URLs. Only changed for local testing against stand-in servers.
 export const ANTHROPIC_BASE_URL = defineString("ANTHROPIC_BASE_URL", { default: "https://api.anthropic.com" });

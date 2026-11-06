@@ -140,6 +140,12 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
     <p class="muted small">By continuing you agree to the <a href="/terms/">terms</a> and <a href="/privacy/">privacy policy</a>.</p>
   </section>
 
+  <section id="v-closed" class="center card" hidden>
+    <h1>Coming soon</h1>
+    <p>Sign-ups for Web Burrito websites open soon. Until then, call or text <a href="tel:+13102798278">(310) 279-8278</a> and we'll set you up by hand.</p>
+    <p><a href="/">Back to webburrito.com</a></p>
+  </section>
+
   <section id="v-sent" class="center card" hidden>
     <h1>Check your email</h1>
     <p>We sent a sign-in link to <b id="sent-to"></b>. Open it on this device.</p>
@@ -199,7 +205,7 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
             </span>
             <span class="muted small" id="draft-note"></span>
           </div>
-          <div class="view"><iframe id="preview" title="Your site" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe></div>
+          <div class="view"><iframe id="preview" title="Your site" sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe></div>
         </div>
         <div class="card chat">
           <h3>Ask for changes</h3>
@@ -273,6 +279,10 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
         <ol class="timeline" id="timeline"></ol>
         <p class="err" id="progress-err" role="alert"></p>
         <ul class="reasons" id="reasons"></ul>
+        <form id="redomain" class="domain-row" hidden>
+          <input id="redomain-name" placeholder="another name, like rosasbakeryla.com" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="New domain name">
+          <button type="submit" class="ghost" id="redomain-go">Use this domain</button>
+        </form>
         <div id="live-box" hidden>
           <p class="muted small">Your site is live at</p>
           <a class="live-link" id="live-link" target="_blank" rel="noopener"></a>
@@ -328,7 +338,7 @@ const fa = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.j
 const fs = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
 
 const $ = (id) => document.getElementById(id);
-const views = ["v-loading", "v-signin", "v-sent", "v-app"];
+const views = ["v-loading", "v-closed", "v-signin", "v-sent", "v-app"];
 const show = (id) => views.forEach((v) => ($(v).hidden = v !== id));
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -366,16 +376,29 @@ if (local) {
 }
 
 const cfg = await fetch("/api/app/config").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+if (!cfg?.apiBase) {
+  // The platform isn't turned on yet (or can't be reached): nothing here would work.
+  show("v-closed");
+  throw new Error("platform off");
+}
 
+// Calls go straight to the function's own address: requests through webburrito.com/api are
+// cut off after 60 seconds, and building a site takes about a minute.
+const API = cfg?.apiBase || "/api/app";
 async function api(path, body = {}) {
   const token = await auth.currentUser.getIdToken();
-  const r = await fetch(`/api/app${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ ...body, _auth: token }),
-  });
+  let r;
+  try {
+    r = await fetch(`${API}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw Object.assign(new Error("Couldn't reach Web Burrito. Check your connection; if you just asked for a change, it may still finish."), { data: {} });
+  }
   const j = await r.json().catch(() => ({}));
-  if (!r.ok || j.ok === false) throw new Error(j.error || `Something went wrong (${r.status}). Try again.`);
+  if (!r.ok || j.ok === false) throw Object.assign(new Error(j.error || `Something went wrong (${r.status}). Try again.`), { data: j });
   return j;
 }
 
@@ -426,6 +449,7 @@ $("out").addEventListener("click", () => fa.signOut(auth));
 
 // ---------- state ----------
 let me = null; // users/{uid}
+let canBuyNow = true;
 let draft = null;
 let stops = [];
 let working = false;
@@ -443,7 +467,7 @@ fa.onAuthStateChanged(auth, (user) => {
     fs.onSnapshot(fs.doc(db, "users", user.uid, "site", "draft"), (s) => { draft = s.data() || null; renderSite(); render(); }, () => {}),
     fs.onSnapshot(fs.query(fs.collection(db, "users", user.uid, "messages"), fs.orderBy("at", "asc"), fs.limitToLast(60)), (s) => renderMsgs(s.docs.map((d) => d.data())), () => {}),
   );
-  api("/status").catch(() => {}); // makes the account, and moves a launch forward if one is waiting
+  api("/status").then((r) => { canBuyNow = r.canBuy !== false; render(); }).catch(() => {}); // makes the account, moves a waiting launch forward
 });
 
 // ---------- 1. business ----------
@@ -538,7 +562,7 @@ $("undo").addEventListener("click", async () => {
   try { await api("/undo"); } catch (err) { $("ask-err").textContent = err.message; }
 });
 
-// Start from a Web Burrito preview: decrypt it here with the passcode, like the preview page does.
+// Start from a Web Burrito preview: the server opens it with the passcode.
 $("claim-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   $("claim-err").textContent = "";
@@ -546,25 +570,13 @@ $("claim-form").addEventListener("submit", async (e) => {
   if (!slug) return ($("claim-err").textContent = "Paste the link we sent you, like webburrito.com/your-shop.");
   busy($("claim-go"), true, "Opening…");
   try {
-    const page = await fetch(`/${slug}/`).then((r) => (r.ok ? r.text() : Promise.reject(new Error("not found"))));
-    const m = /<script type="application\/json" id="payload">([\s\S]*?)<\/script>/.exec(page);
-    if (!m) throw new Error("not found");
-    const html = await decryptPreview(JSON.parse(m[1]), $("claim-code").value.trim());
-    await api("/claim", { slug, html });
+    await api("/claim", { slug, passcode: $("claim-code").value.trim() });
   } catch (err) {
-    $("claim-err").textContent = err.message === "not found" ? "We couldn't find that preview. Check the link." : err.name === "OperationError" ? "That passcode didn't work." : err.message;
+    $("claim-err").textContent = err.message;
   } finally {
     busy($("claim-go"), false, "Opening…");
   }
 });
-async function decryptPreview(P, code) {
-  const b = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveKey"]);
-  const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: b(P.salt), iterations: P.iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
-  let buf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b(P.iv) }, key, b(P.ct));
-  if (P.z === "gz") buf = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
-  return new TextDecoder().decode(buf);
-}
 
 // ---------- 3. go live ----------
 let plan = "regular";
@@ -601,7 +613,7 @@ async function checkDomain(name) {
     const r = await api("/domain-check", { domain: d });
     domainOk = r.available ? r.domain : null;
     $("domain-result").replaceChildren(r.available
-      ? h("span", { class: "ok" }, `${r.domain} is yours if you want it. Included in your plan.`)
+      ? h("span", { class: "ok" }, r.owned ? `${r.domain} is already yours. Your new plan will use it again.` : `${r.domain} is yours if you want it. Included in your plan.`)
       : h("span", { class: "err" }, `${r.domain} isn't available${r.why && r.why !== "taken" && r.why !== "domain_unavailable" ? ` (${r.why})` : ""}.`));
     if (r.suggestions?.length) {
       $("domain-sugg").replaceChildren(h("span", { class: "muted small" }, "Try:"), ...r.suggestions.map((s) => h("button", { type: "button", class: "ghost", onclick: () => checkDomain(s.domain) }, s.domain)));
@@ -657,7 +669,9 @@ $("buy-form").addEventListener("submit", async (e) => {
     const tok = await tokenize(card, contact);
     await api("/subscribe", { plan, billing: billing(), domain: domainOk, contact, checkoutId, ...tok });
   } catch (err) {
-    checkoutId = rid(); // a retry is a new payment attempt (the server refuses a second plan)
+    // Only a definite "nothing was charged" starts a new attempt; otherwise a retry reuses
+    // this one, so it can't create a second subscription.
+    if (err.data?.newCheckout) checkoutId = rid();
     $("pay-err").textContent = err.message;
   } finally {
     busy($("pay"), false, "Paying…");
@@ -681,9 +695,10 @@ function stepIndex(u) {
 }
 function renderProgress() {
   const i = stepIndex(me);
-  const bad = ["needs_changes", "needs_attention", "needs_domain", "payment_failed"].includes(me.launch?.state);
+  const bad = ["needs_changes", "needs_attention", "needs_domain", "payment_failed", "suspended"].includes(me.launch?.state);
+  $("redomain").hidden = me.launch?.state !== "needs_domain";
   const notes = {
-    pay: me.plan?.paid ? `Paid with ${me.plan.cardBrand || "card"} ending ${me.plan.cardLast4 || ""}` : me.launch?.state === "payment_failed" ? "The payment didn't go through" : "Waiting for the payment to go through…",
+    pay: me.plan?.paid ? `Paid with ${me.plan.cardBrand || "card"} ending ${me.plan.cardLast4 || ""}` : me.launch?.state === "payment_failed" ? "The payment didn't go through" : me.plan?.status === "starting" ? "Confirming your payment with Square…" : "Waiting for the payment to go through…",
     domain: me.domain?.state === "registered" ? `${me.domain.name} is registered in your name` : me.domain?.name ? `Registering ${me.domain.name}…` : "",
     check: me.launch?.state === "needs_changes" ? "A few things to fix first (below)" : i > 2 ? "Passed" : "We check every site before it goes online",
     live: i >= 4 ? "Your site is online" : me.launch?.state === "publishing" ? "Putting it online…" : "",
@@ -704,9 +719,23 @@ function renderProgress() {
     $("live-link").textContent = me.domain.name;
   }
 }
+$("redomain").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("progress-err").textContent = "";
+  busy($("redomain-go"), true, "Checking…");
+  try {
+    const c = await api("/domain-check", { domain: $("redomain-name").value.trim() });
+    if (!c.available) throw new Error(`${c.domain} isn't available${c.suggestions?.length ? `. Try ${c.suggestions.map((x) => x.domain).join(", ")}` : ""}.`);
+    await api("/domain", { domain: c.domain });
+  } catch (err) {
+    $("progress-err").textContent = err.message;
+  } finally {
+    busy($("redomain-go"), false, "Checking…");
+  }
+});
 let poll = null;
 function keepPolling(on) {
-  if (on && !poll) poll = setInterval(() => api("/status").catch(() => {}), 12000);
+  if (on && !poll) poll = setInterval(() => api("/status").catch(() => {}), 15000);
   if (!on && poll) { clearInterval(poll); poll = null; }
 }
 
@@ -726,7 +755,10 @@ $("publish").addEventListener("click", async () => {
   }
 });
 $("cancel").addEventListener("click", async () => {
-  if (!confirm("Cancel your plan? Your site stays up until the end of the period you've paid for, then goes offline.")) return;
+  const ask = me.plan?.status === "active"
+    ? "Cancel your plan? Your site stays up until the end of the period you've paid for, then goes offline."
+    : "Cancel your plan? It hasn't been paid, so it ends now: your site goes offline and the unpaid bill is canceled.";
+  if (!confirm(ask)) return;
   $("plan-err").textContent = "";
   try { await api("/cancel"); } catch (err) { $("plan-err").textContent = err.message; }
 });
@@ -779,16 +811,19 @@ function render() {
   if (editing) fillProfile();
   $("s-site").hidden = !hasProfile;
 
-  const paid = Boolean(me.plan?.paid);
+  const paid = Boolean(me.plan?.paid && me.plan?.env === cfg?.square?.environment && ["active", "past_due", "canceling"].includes(me.plan?.status));
   const free = cfg?.freeBuilds ?? 3;
   const used = me.builds?.free || 0;
   $("tries").textContent = paid ? "" : `${Math.max(0, free - used)} of ${free} free tries left`;
   $("draft-note").textContent = draft?.source === "preview" ? "Started from your preview" : "";
+  const runningElsewhere = (me.builds?.running?.toMillis?.() || 0) > Date.now() - 6 * 60e3;
+  if (!working) $("working").hidden = !runningElsewhere;
 
   const hasSite = Boolean(draft?.html);
-  const started = Boolean(me.plan?.subscriptionId);
+  const plan = me.plan?.env === cfg?.square?.environment ? me.plan : null; // a test-mode plan doesn't count once payments are real
+  const started = Boolean(plan && ["starting", "pending_payment", "paused", "active", "past_due", "canceling"].includes(plan.status));
   $("s-live").hidden = !hasSite;
-  const open = Boolean(cfg?.ready?.payments && cfg?.ready?.hosting && cfg?.ready?.domains);
+  const open = Boolean(cfg?.ready?.payments && cfg?.ready?.hosting && cfg?.ready?.domains && canBuyNow);
   $("closed").hidden = started || open;
   $("buy-form").hidden = started || !open;
   $("progress").hidden = !started;
@@ -802,8 +837,8 @@ function render() {
     if (!f.elements.ccity.value) f.elements.ccity.value = me.profile?.city || "";
   }
   if (started) renderProgress();
-  const settled = me.launch?.state === "live" || ["canceled", "paused"].includes(me.plan?.status);
-  keepPolling(started && !settled && me.launch?.state !== "needs_changes");
+  const settled = ["live", "needs_changes", "needs_domain", "needs_attention", "payment_failed", "suspended", "no_plan"].includes(me.launch?.state);
+  keepPolling(started && !settled);
 
   const failedFirst = me.launch?.state === "payment_failed" && !paid;
   const manage = (paid && me.domain?.state === "registered") || failedFirst;
@@ -813,14 +848,15 @@ function render() {
     const p = cfg?.plans?.[me.plan.id];
     $("plan-name").textContent = p ? p.name : "Your plan";
     const status = {
-      active: "Active", past_due: "Payment failed. Change your card to keep your site online.", canceling: `Canceled. Your site stays up until ${me.plan.cancelDate || "the end of the paid period"}.`,
+      active: "Active", past_due: "Payment failed. Pay the invoice Square emailed you to keep your site online, and change your card below for next time.", canceling: `Canceled. Your site stays up until ${me.plan.cancelDate || "the end of the paid period"}.`,
       canceled: "Ended. Your site is offline.", paused: "Paused. Your site is offline.", pending_payment: "Waiting for your first payment",
     }[me.plan.status] || me.plan.status;
     $("plan-line").textContent = `${p ? (me.plan.billing === "yearly" ? `${money(p.yearly)} a year` : `${money(p.monthly)} a month`) : ""} · ${status} · card ending ${me.plan.cardLast4 || "—"}`;
-    $("cancel").hidden = !["active", "past_due"].includes(me.plan.status);
+    $("cancel").hidden = !(["active", "past_due"].includes(me.plan.status) || (failedFirst && me.plan.status === "pending_payment"));
     const changed = draft?.hash && me.live?.hash && draft.hash !== me.live.hash;
-    $("publish").disabled = !changed || me.live?.state !== "live";
-    $("publish-note").textContent = changed ? "You have changes that aren't live yet." : "Your live site matches the preview. Ask for changes above, then publish them here.";
+    $("publish").disabled = !changed || me.live?.state !== "live" || Boolean(me.live?.suspended);
+    $("publish-note").textContent = me.live?.suspended ? "Your site is offline right now, so changes can't be published."
+      : changed ? "You have changes that aren't live yet." : "Your live site matches the preview. Ask for changes above, then publish them here.";
     $("email-box").hidden = !p?.emails || failedFirst;
     if (p?.emails && !failedFirst) renderForwards();
   }

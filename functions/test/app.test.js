@@ -69,7 +69,22 @@ test("review verdicts", () => {
   assert.deepEqual(parseReview('{"ok": true, "problems": []}'), { ok: true, reasons: [] });
   assert.deepEqual(parseReview('Sure: {"ok": false, "problems": ["Says #1 in LA"]}'), { ok: false, reasons: ["Says #1 in LA"] });
   assert.equal(parseReview('{"ok": true, "problems": ["something"]}').ok, false);
-  assert.equal(parseReview("no json").ok, false);
+  // An answer that can't be read is "try again", never a pass or a counted failure.
+  for (const garbled of ["no json", '{"problems": []}', '{"ok": "yes"}', ""]) {
+    const r = parseReview(garbled);
+    assert.equal(r.ok, false, garbled);
+    assert.equal(r.transient, true, garbled);
+  }
+  assert.equal(parseReview('{"ok": false, "problems": ["x"]}').transient, undefined);
+});
+
+import { shortHash } from "../app/pure.js";
+test("shortHash: short, stable, different for different input", () => {
+  assert.match(shortHash("cnon:abc"), /^[0-9a-f]{10}$/);
+  assert.equal(shortHash("cnon:abc"), shortHash("cnon:abc"));
+  assert.notEqual(shortHash("cnon:abc"), shortHash("cnon:abd"));
+  // Idempotency keys stay within Square's 45 characters with the longest checkout id.
+  assert.ok(`${"x".repeat(30)}-c-${shortHash("t")}`.length <= 45);
 });
 
 test("email forwards", () => {
@@ -82,4 +97,44 @@ test("email forwards", () => {
 
 test("plan prices match the website", () => {
   assert.deepEqual(Object.values(PLANS).map((p) => [p.monthly, p.yearly]), [[2000, 19900], [3500, 34900], [6900, 69900]]);
+});
+
+import { sanitizeHtml, riskyDomain } from "../app/pure.js";
+test("sanitizeHtml removes scripts, handlers, forms and frames but keeps the page", () => {
+  const out = sanitizeHtml(`<html><head><base href="x"><meta http-equiv="refresh" content="0;url=https://e"><link rel="stylesheet" href="https://fonts.googleapis.com/a"><link rel="import" href="x"></head>
+<body onload="a()"><a href="javascript:alert(1)">x</a><a HREF = " JavaScript:alert(1)">y</a><img src=x onerror=alert(1) alt="ok"><svg onload="x()"><script>alert(2)</script></svg>
+<form action="https://e"><input name=pw type=password></form><iframe srcdoc="<script>x</script>"></iframe><a href="tel:+1555">call</a><p onclick='a()' class="c">t</p></body></html>`);
+  for (const bad of ["<script", "onload", "onerror", "onclick", "javascript:", "<form", "<input", "<iframe", "<base", "http-equiv", 'rel="import"']) {
+    assert.equal(out.toLowerCase().includes(bad.toLowerCase()), false, bad);
+  }
+  for (const good of ['href="tel:+1555"', 'alt="ok"', 'class="c"', "fonts.googleapis.com"]) assert.ok(out.includes(good), good);
+});
+
+test("sanitizeHtml: tricks that slip past simple filters", () => {
+  const out = sanitizeHtml(`<!doctype html><html><head>
+<meta http-equiv="Refresh" content="0;url=https://evil.example"><meta name="viewport" content="width=device-width"><meta property="og:title" content="Rosa">
+<meta content="0;url=https://evil.example" http-equiv="refresh"></head><body>
+<a href="&#106;avascript:alert(1)">a</a><a href="java	script:alert(1)">b</a><a href="data:text/html,<script>x</script>">c</a>
+<svg><a xlink:href="javascript:alert(1)"><text>d</text></a></svg><img src="data:image/png;base64,AAAA" alt="pixel">
+<button formaction="https://evil.example">e</button><object data="x"></object><embed src="x"><template><script>x</script></template>
+<a href="https://maps.google.com/?q=1" target="_blank">map</a><a href="sms:+15555550100">text</a></body></html>`);
+  const low = out.toLowerCase();
+  for (const bad of ["refresh", "evil.example", "javascript", "data:text", "<object", "<embed", "<template", "formaction", "<script"]) {
+    assert.equal(low.includes(bad), false, bad);
+  }
+  for (const good of ['name="viewport"', 'property="og:title"', 'src="data:image/png', 'href="https://maps.google.com/?q=1"', 'href="sms:+15555550100"']) {
+    assert.ok(out.includes(good), good);
+  }
+  assert.ok(out.startsWith("<!doctype html>"));
+});
+
+test("look-alike domains are refused, ordinary shop names aren't", () => {
+  for (const d of ["paypal-refund.co", "chase-verify.com", "mylogin.net", "googlereviews.biz", "irsgov-help.us",
+    "wells-fargo-alerts.com", "chase-bank.net", "bank-of-america-help.com", "irs-refund.us", "apple-support.co", "paypa1.com", "g00gle.shop"]) {
+    assert.equal(riskyDomain(d), true, d);
+  }
+  for (const d of ["rosasbakery.com", "upsidedonuts.com", "applevalleytires.com", "chasesbakery.com", "securelocks.com",
+    "unlockpros.com", "autorecoverytowing.com", "walletrepair.biz"]) {
+    assert.equal(riskyDomain(d), false, d);
+  }
 });

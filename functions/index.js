@@ -32,7 +32,8 @@ const db = getFirestore();
 const auth = getAuth();
 
 // The customer platform (webburrito.com/app/): accounts, AI builder, payments, domains, launch.
-export { app } from "./app/index.js";
+// Both functions are left out of deploys until PLATFORM=on in functions/.env (functions/app/config.js).
+export { app, launcher } from "./app/index.js";
 
 // invoker "public": the website (through Firebase Hosting) calls this without signing in,
 // so anyone must be allowed to invoke it. Every request is validated below.

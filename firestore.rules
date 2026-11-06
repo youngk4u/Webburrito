@@ -65,6 +65,11 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false;
     }
+    // Square subscriptions on Web Burrito plans that no account claimed (for the admin to check).
+    match /orphans/{subscriptionId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
 
     // Customer accounts (ready for the customer login). A signed-in customer can
     // read their own record and everything under it; only admins and Cloud

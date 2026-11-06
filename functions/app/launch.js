@@ -1,51 +1,99 @@
 // Getting a paid customer's site online: buy the domain, check the site, publish it, and
-// point the domain at it. Every step is safe to run again, and a lease on the customer's
-// record stops two requests (say the Square webhook and the dashboard) from running it at once.
+// point the domain at it.
+//
+// Rules this file keeps:
+// - Every step can run again safely. A launch is moved forward by the customer's page, the
+//   Square webhook (marks paid and queues) and the `launcher` job that runs every minute.
+// - Only one run per customer at a time: a lease with a token. The lease (10 minutes) is
+//   longer than a function can run (9 minutes), and only the holder can release it.
+// - No long waits inside a request: each run does what it can and returns; the next run
+//   picks up from the saved state.
+// - A site that's been taken offline for a reason (unpaid, refund, dispute, admin) stays
+//   offline until that reason is cleared. Publishing re-checks this right before going live.
 
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
-import { cf, square } from "./clients.js";
+import { cf, square, ApiError } from "./clients.js";
 import { reviewSite } from "./ai.js";
-import { domainBuyable, registrantFor, pageHash } from "./pure.js";
-import { MAX_DOMAIN_PRICE, SITES_WORKER_NAME, SQUARE_LOCATION_ID, isLive } from "./config.js";
+import { domainBuyable, registrantFor, pageHash, sanitizeHtml, pageFits, monthKey, dayKey, PLANS } from "./pure.js";
+import {
+  MAX_DOMAIN_PRICE, MAX_DOMAINS_PER_DAY, SITES_WORKER_NAME, SQUARE_LOCATION_ID, SQUARE_ENVIRONMENT, CLOUDFLARE_ACCOUNT_ID,
+  PAST_DUE_GRACE_DAYS, LAUNCH_RETRY_SECONDS, isLive,
+} from "./config.js";
 
 const db = () => getFirestore();
 export const userRef = (uid) => db().collection("users").doc(uid);
 export const draftRef = (uid) => userRef(uid).collection("site").doc("draft");
 export const liveRef = (uid) => userRef(uid).collection("site").doc("live");
 export const configRef = () => db().collection("config").doc("platform");
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const env = () => SQUARE_ENVIRONMENT.value();
+const ms = (t) => t?.toMillis?.() ?? (t instanceof Date ? t.getTime() : 0);
+
+// Plan statuses during which the customer has paid for the current period.
+export const PAID_STATUSES = ["active", "past_due", "canceling"];
+// Statuses that end a plan for good.
+export const ENDED_STATUSES = ["canceled", "refunded", "disputed"];
+// States where the launch waits for the customer or Web Burrito, not for the job.
+const PARKED = ["live", "needs_changes", "needs_domain", "needs_attention", "payment_failed", "suspended", "no_plan"];
+
+/** The customer's current plan, or null if it belongs to the other Square environment. */
+export const currentPlan = (u) => (u?.plan?.env === env() ? u.plan : null);
+export const isPaid = (u) => Boolean(currentPlan(u)?.paid && PAID_STATUSES.includes(u.plan.status));
 
 // ---------- lease ----------
-async function acquire(uid, seconds = 240) {
+async function acquire(uid, seconds = 600) {
   const ref = userRef(uid);
-  return db().runTransaction(async (tx) => {
+  const token = randomUUID();
+  const got = await db().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    const until = snap.get("launch.lockUntil")?.toMillis?.() || 0;
-    if (until > Date.now()) return false;
-    tx.set(ref, { launch: { lockUntil: new Date(Date.now() + seconds * 1000) } }, { merge: true });
+    if (ms(snap.get("lease.until")) > Date.now()) return false;
+    tx.set(ref, { lease: { token, until: new Date(Date.now() + seconds * 1000) } }, { merge: true });
     return true;
   });
+  return got ? token : null;
 }
-const release = (uid) => userRef(uid).set({ launch: { lockUntil: null } }, { merge: true });
-
+async function release(uid, token) {
+  const ref = userRef(uid);
+  await db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.get("lease.token") === token) tx.set(ref, { lease: { token: null, until: null } }, { merge: true });
+  });
+}
 /** Runs fn while holding the customer's lease; returns "busy" if someone else holds it. */
 export async function withLease(uid, fn) {
-  if (!(await acquire(uid))) return "busy";
+  const token = await acquire(uid);
+  if (!token) return "busy";
   try {
     return await fn();
   } finally {
-    await release(uid);
+    await release(uid, token);
   }
 }
 
+// The launcher job picks customers whose launch.nextAt has passed (oldest first).
+const step = () => LAUNCH_RETRY_SECONDS.value() * 1000;
 async function setLaunch(uid, state, extra = {}) {
-  await userRef(uid).set({ launch: { state, at: FieldValue.serverTimestamp(), error: null, ...extra } }, { merge: true });
+  const { delayMs = state === "waiting_payment" ? 2 * step() : step(), ...rest } = extra;
+  const queued = rest.queued ?? !PARKED.includes(state);
+  await userRef(uid).set({
+    launch: { state, at: FieldValue.serverTimestamp(), error: null, ...rest, queued, nextAt: queued ? new Date(Date.now() + delayMs) : null },
+  }, { merge: true });
+}
+/** Asks the `launcher` job to move this customer forward now. */
+export const queue = (uid) => userRef(uid).set({ launch: { queued: true, nextAt: new Date() } }, { merge: true });
+
+/** A problem that stops the launch; `state` is what the customer's page shows. */
+export class Step extends Error {
+  constructor(message, state = "needs_attention") {
+    super(message);
+    this.state = state;
+  }
 }
 
 // ---------- payment ----------
-/** Looks up the subscription's first invoice. Returns the invoice if it's paid, else null. */
+/** The subscription's paid invoice, if there is one. */
 export async function paidInvoice(subscriptionId, customerId) {
   const sub = (await square("GET", `/v2/subscriptions/${encodeURIComponent(subscriptionId)}`)).subscription;
   let ids = sub?.invoice_ids || [];
@@ -56,88 +104,165 @@ export async function paidInvoice(subscriptionId, customerId) {
     });
     ids = (found.invoices || []).filter((i) => i.subscription_id === subscriptionId).map((i) => i.id);
   }
-  for (const id of ids) {
+  for (const id of ids.slice(0, 5)) {
     const inv = (await square("GET", `/v2/invoices/${encodeURIComponent(id)}`)).invoice;
     if (inv?.status === "PAID") return inv;
   }
   return null;
 }
 
-export async function markPaid(uid, invoiceId) {
-  await userRef(uid).set({
-    plan: { status: "active", paid: true, paidAt: FieldValue.serverTimestamp(), lastInvoiceId: invoiceId || null, pastDueSince: null },
-  }, { merge: true });
+/**
+ * Records a payment on the current subscription. Never brings back a plan that has ended,
+ * and never turns "canceling" back into "active" (the payment just covers the last period).
+ */
+export async function markPaid(uid, subscriptionId, invoiceId) {
+  return db().runTransaction(async (tx) => {
+    const ref = userRef(uid);
+    const u = (await tx.get(ref)).data() || {};
+    const plan = currentPlan(u);
+    if (!plan || plan.subscriptionId !== subscriptionId) return false;
+    if (ENDED_STATUSES.includes(plan.status) || plan.status === "paused") return false;
+    const status = plan.status === "canceling" ? "canceling" : "active";
+    tx.set(ref, {
+      plan: { status, paid: true, paidAt: FieldValue.serverTimestamp(), lastInvoiceId: invoiceId || null, pastDueSince: null, firstChargeFailedAt: null },
+      launch: { queued: true, nextAt: new Date(), ...(u.launch?.state === "payment_failed" ? { state: "paid", error: null } : {}) },
+      ...(u.live?.suspended === "unpaid" ? { live: { suspended: null } } : {}),
+    }, { merge: true });
+    return true;
+  });
 }
 
 // ---------- domain ----------
-async function registrationState(domain) {
-  const r = await cf("GET", `/accounts/{account}/registrar/registrations/${domain}/registration-status`, null, { allow: [404] });
-  if (r.status === 404) return null;
-  return r.body?.result || null;
+async function getRegistration(domain) {
+  const r = await cf("GET", `/accounts/{account}/registrar/registrations/${domain}`, null, { allow: [404] });
+  return r.status === 404 ? null : r.body?.result || {};
 }
+async function registrationStatus(domain) {
+  const r = await cf("GET", `/accounts/{account}/registrar/registrations/${domain}/registration-status`, null, { allow: [404] });
+  return r.status === 404 ? null : r.body?.result || null;
+}
+/** The domain's Cloudflare zone id, creating the zone if registration didn't. */
+async function ensureZone(domain) {
+  const find = async () => (await cf("GET", `/zones?name=${encodeURIComponent(domain)}&account.id={account}`)).body?.result?.[0]?.id || null;
+  let id = await find();
+  if (!id) {
+    const made = await cf("POST", "/zones", { name: domain, account: { id: CLOUDFLARE_ACCOUNT_ID.value() }, type: "full" }, { allow: [400, 409] });
+    id = made.body?.result?.id || (await find());
+  }
+  return id;
+}
+export const domainIndex = (domain) => db().collection("domainIndex").doc(domain);
 
 async function finishDomain(uid, domain) {
-  // Turn on auto-renew (off by default for API registrations) and find the new zone.
+  // Mark it as registered for this customer for good: the name can't be released or reassigned.
+  await domainIndex(domain).set({ uid, registered: true, registeredAt: FieldValue.serverTimestamp() }, { merge: true });
   let autoRenew = false;
   try {
     await cf("PUT", `/accounts/{account}/registrar/domains/${domain}`, { auto_renew: true, locked: true });
     autoRenew = true;
   } catch (err) {
-    logger.warn("auto-renew not set", { domain, err: String(err) });
+    // The registration request already asks for auto-renew; this only double-checks it.
+    logger.warn("auto-renew not confirmed", { domain, err: String(err) });
   }
-  let zoneId = null;
-  for (let i = 0; i < 6 && !zoneId; i++) {
-    const z = await cf("GET", `/zones?name=${encodeURIComponent(domain)}&account.id={account}`);
-    zoneId = z.body?.result?.[0]?.id || null;
-    if (!zoneId) await sleep(3000);
-  }
+  const zoneId = await ensureZone(domain);
   await userRef(uid).set({
     domain: { state: "registered", registeredAt: FieldValue.serverTimestamp(), autoRenew, zoneId, error: null },
   }, { merge: true });
-  return zoneId;
+  return Boolean(zoneId);
 }
 
-/** Makes sure the customer's domain is registered. Returns true when it is. */
-async function ensureDomain(uid, u) {
+/** Moves the domain toward "registered". Returns true when it's registered with a zone. */
+async function ensureDomain(uid, u, { approveDomain = false } = {}) {
   const d = u.domain || {};
-  if (!d.name) throw new Step("Pick a domain name first.");
+  if (!d.name) throw new Step("Pick a domain name.", "needs_domain");
   if (!isLive()) {
-    // Test mode: pretend the domain was bought.
     if (d.state !== "registered") await userRef(uid).set({ domain: { state: "registered", test: true, zoneId: null, autoRenew: false, error: null } }, { merge: true });
     return true;
   }
-  if (d.state === "registered" && d.zoneId) return true;
-  if (d.state === "registered") return Boolean(await finishDomain(uid, d.name));
+  if (d.state === "unavailable" || d.state === "failed") throw new Step(d.error || `${d.name} can't be registered. Pick another name.`, "needs_domain");
+  // A domain is only ever used for the customer it's reserved for (reserve it now if nobody has).
+  const mine = await db().runTransaction(async (tx) => {
+    const ref = domainIndex(d.name);
+    const idx = (await tx.get(ref)).data();
+    if (idx && idx.uid !== uid) return false;
+    if (!idx) tx.set(ref, { uid, at: FieldValue.serverTimestamp() });
+    return true;
+  });
+  if (!mine) {
+    const msg = `${d.name} can't be used. Pick another name.`;
+    await userRef(uid).set({ domain: { state: "failed", error: msg } }, { merge: true });
+    throw new Step(msg, "needs_domain");
+  }
+  if (d.state === "registered") return d.zoneId ? true : Boolean(await finishDomain(uid, d.name));
 
-  // Already started (here or in an earlier request): follow it to the end.
-  let status = await registrationState(d.name);
-  if (!status && d.state !== "pending") {
-    const check = await cf("POST", "/accounts/{account}/registrar/domain-check", { domains: [d.name] });
-    const entry = check.body?.result?.domains?.[0];
-    const ok = domainBuyable(entry, MAX_DOMAIN_PRICE.value());
-    if (!ok.ok) {
-      await userRef(uid).set({ domain: { state: "unavailable", error: `${d.name} can't be bought (${ok.why}). Pick another name.` } }, { merge: true });
-      throw new Step(`${d.name} can't be bought anymore (${ok.why}). Pick another name.`, "needs_domain");
-    }
-    if (!d.contact) throw new Step("The domain owner's contact details are missing.", "needs_domain");
-    await userRef(uid).set({ domain: { state: "pending", requestedAt: FieldValue.serverTimestamp(), cost: ok.cost } }, { merge: true });
-    const r = await cf("POST", "/accounts/{account}/registrar/registrations",
-      { domain_name: d.name, contacts: { registrant: registrantFor(d.contact) } }, { timeoutMs: 40_000 });
-    logger.info("domain registration started", { uid, domain: d.name, status: r.status });
-    if (r.status === 201) return Boolean(await finishDomain(uid, d.name));
-    status = await registrationState(d.name);
-  }
-  for (let i = 0; i < 8; i++) {
-    if (status?.state === "succeeded" || status?.completed && !status?.error) return Boolean(await finishDomain(uid, d.name));
-    if (status?.state === "failed" || status?.state === "blocked" || status?.state === "action_required") {
-      const msg = status?.error?.message || status.state;
+  // Already registered for this customer (a run that timed out, or coming back after a cancel)?
+  if (await getRegistration(d.name)) return finishDomain(uid, d.name);
+
+  if (d.state === "pending") {
+    const st = await registrationStatus(d.name);
+    const age = Date.now() - ms(d.pendingAt);
+    if (st?.state === "succeeded") return finishDomain(uid, d.name);
+    if (st?.state === "failed" || st?.state === "blocked") {
+      const msg = `${d.name} couldn't be registered (${st?.error?.message || st.state}). Pick another name.`;
       await userRef(uid).set({ domain: { state: "failed", error: msg } }, { merge: true });
-      throw new Step(`The domain registration didn't go through (${msg}). Web Burrito has been told.`, "needs_attention");
+      throw new Step(msg, "needs_domain");
     }
-    await sleep(5000);
-    status = await registrationState(d.name);
+    if (st?.state === "action_required") {
+      // Cloudflare is waiting on someone (often the registrant confirming their email): keep checking.
+      const what = st?.error?.message || st?.context?.action || "a confirmation step";
+      await userRef(uid).set({ domain: { error: `Cloudflare is waiting for: ${what}. Check the domain owner's email.` } }, { merge: true });
+      if (age > 3 * 86400e3) throw new Step(`Registering ${d.name} is waiting for: ${what}. Web Burrito has been told.`, "needs_attention");
+      return false;
+    }
+    if (!st && age > 5 * 60e3) {
+      // No registration was ever started (the request never reached Cloudflare): try again below.
+      await userRef(uid).set({ domain: { state: "chosen", pendingAt: null } }, { merge: true });
+    } else {
+      if (age > 86400e3) throw new Step(`Registering ${d.name} is taking longer than it should. Web Burrito has been told.`, "needs_attention");
+      if (age > 30 * 60e3) await userRef(uid).set({ domain: { error: "Registration is taking longer than usual. It will go live on its own when it's done." } }, { merge: true });
+      return false;
+    }
   }
-  return false; // still in progress; the next check picks it up
+
+  // Not started yet: check it, respect the daily cap, then register.
+  const check = await cf("POST", "/accounts/{account}/registrar/domain-check", { domains: [d.name] });
+  const ok = domainBuyable(check.body?.result?.domains?.[0], MAX_DOMAIN_PRICE.value());
+  if (!ok.ok) {
+    const msg = `${d.name} can't be bought (${ok.why}). Pick another name.`;
+    await userRef(uid).set({ domain: { state: "unavailable", error: msg } }, { merge: true });
+    throw new Step(msg, "needs_domain");
+  }
+  if (!d.contact) throw new Step("The domain owner's details are missing.", "needs_attention");
+  const usage = db().collection("usage").doc(dayKey());
+  const allowed = await db().runTransaction(async (tx) => {
+    const n = (await tx.get(usage)).get("domains") || 0;
+    if (n >= MAX_DOMAINS_PER_DAY.value() && !approveDomain) return false;
+    tx.set(usage, { domains: FieldValue.increment(1) }, { merge: true });
+    return true;
+  });
+  if (!allowed) throw new Step("Your domain will be registered after a quick check by Web Burrito (usually within a day).", "needs_attention");
+
+  let r;
+  try {
+    r = await cf("POST", "/accounts/{account}/registrar/registrations",
+      { domain_name: d.name, auto_renew: true, contacts: { registrant: registrantFor(d.contact) } }, { timeoutMs: 40_000 });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 429) return false; // busy: try again next run
+    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) throw err; // our setup, not their name: Web Burrito sees it
+    if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+      const msg = `${d.name} couldn't be registered (${err.detail}). Pick another name.`;
+      await userRef(uid).set({ domain: { state: "failed", error: msg } }, { merge: true });
+      throw new Step(msg, "needs_domain");
+    }
+    // No answer: it may or may not have gone through. The next run checks before trying again.
+    await userRef(uid).set({ domain: { state: "pending", pendingAt: FieldValue.serverTimestamp(), cost: ok.cost } }, { merge: true });
+    logger.warn("domain registration unclear", { uid, domain: d.name, err: String(err) });
+    return false;
+  }
+  logger.info("domain registration started", { uid, domain: d.name, status: r.status });
+  if (r.status === 201) return finishDomain(uid, d.name);
+  await userRef(uid).set({ domain: { state: "pending", pendingAt: FieldValue.serverTimestamp(), cost: ok.cost } }, { merge: true });
+  return false;
 }
 
 /** Points the domain (and www) at the sites Worker. Safe to repeat. */
@@ -160,38 +285,90 @@ async function kvPut(domain, record) {
     JSON.stringify(record), { raw: true, headers: { "Content-Type": "text/plain" } });
 }
 
+const OFFLINE_WHY = {
+  unpaid: "Your site is offline because a payment didn't go through. Pay the invoice Square emailed you to bring it back.",
+  refunded: "Your site is offline because the payment was refunded.",
+  disputed: "Your site is offline because the payment is disputed. Contact Web Burrito.",
+  admin: "Your site was taken offline by Web Burrito. Contact us to bring it back.",
+};
+
 /**
  * Checks the draft and, if it passes, makes it the live site. Returns { ok, reasons }.
- * A draft that already passed (same content) isn't checked again.
+ * A draft that already passed (same content) isn't checked again. Call it under the lease.
  */
-export async function publishDraft(uid, u) {
+export async function publishDraft(uid) {
+  let u = (await userRef(uid).get()).data() || {};
+  if (u.live?.suspended) throw new Step(OFFLINE_WHY[u.live.suspended] || OFFLINE_WHY.admin, "suspended");
+  if (!isPaid(u)) throw new Step("Your site goes live after your first payment.", "no_plan");
   const draft = (await draftRef(uid).get()).data();
-  if (!draft?.html) throw new Step("There's no site to publish yet.");
-  const hash = draft.hash || pageHash(draft.html);
+  if (!draft?.html) throw new Step("There's no site to publish yet.", "needs_changes");
+  const html = sanitizeHtml(draft.html);
+  if (!pageFits(html) || html.length > 150_000) throw new Step("The page is too big to publish. Ask for a simpler page, or undo the last change.", "needs_changes");
+  const hash = pageHash(html);
   let review = u.review?.hash === hash ? u.review : null;
   if (!review) {
+    // Each check counts toward the plan's monthly allowance (with some room for re-checks).
+    const month = monthKey();
+    const limit = (PLANS[u.plan.id]?.editsPerMonth || 20) + 10;
+    const used = u.reviews?.month === month ? u.reviews.count || 0 : 0;
+    if (used >= limit) throw new Step(`You've used this month's site checks. Text (310) 279-8278 for more.`, "needs_changes");
     await setLaunch(uid, "checking");
-    const r = await reviewSite({ profile: u.profile || {}, html: draft.html });
+    const r = await reviewSite({ profile: u.profile || {}, html, domain: u.domain?.name || "" });
+    if (r.transient) {
+      // The checker's answer couldn't be read. Try a few more times, then ask Web Burrito.
+      const tries = (u.reviewRetry?.hash === hash ? u.reviewRetry.n || 0 : 0) + 1;
+      await userRef(uid).set({ reviewRetry: { hash, n: tries } }, { merge: true });
+      if (tries >= 5) throw new Step("The site check isn't finishing. Web Burrito has been told and will look at it.", "needs_attention");
+      throw new Step("The site check didn't finish. It will try again in a minute.", "checking");
+    }
     review = { hash, ok: r.ok, reasons: r.reasons, at: new Date() };
-    await userRef(uid).set({ review }, { merge: true });
+    await userRef(uid).set({ review, reviews: { month, count: used + 1 } }, { merge: true });
   }
   if (!review.ok) {
     await setLaunch(uid, "needs_changes", { reasons: review.reasons });
     return { ok: false, reasons: review.reasons };
   }
   await setLaunch(uid, "publishing");
-  await kvPut(u.domain.name, { state: "live", html: draft.html, business: u.profile?.business || "", at: Date.now() });
-  await liveRef(uid).set({ html: draft.html, hash, publishedAt: FieldValue.serverTimestamp() });
+  u = (await userRef(uid).get()).data() || {};
+  if (u.live?.suspended || !isPaid(u)) throw new Step(OFFLINE_WHY[u.live?.suspended] || "Your plan isn't active.", "suspended");
+  await kvPut(u.domain.name, { state: "live", html, business: u.profile?.business || "", at: Date.now() });
+  // If it was taken offline (or the plan ended) while we were publishing, put the offline page back.
+  const after = (await userRef(uid).get()).data() || {};
+  if (after.live?.suspended || !isPaid(after)) {
+    await kvPut(u.domain.name, { state: "offline", business: u.profile?.business || "", at: Date.now() });
+    throw new Step(OFFLINE_WHY[after.live?.suspended] || "Your plan isn't active.", "suspended");
+  }
+  await liveRef(uid).set({ html, hash, publishedAt: FieldValue.serverTimestamp() });
   await userRef(uid).set({ live: { hash, url: isLive() ? `https://${u.domain.name}/` : null, test: !isLive(), publishedAt: FieldValue.serverTimestamp(), state: "live" } }, { merge: true });
   return { ok: true, reasons: [] };
 }
 
-export async function takeOffline(uid, why) {
-  const u = (await userRef(uid).get()).data() || {};
-  if (u.domain?.name && u.live?.state === "live") {
-    await kvPut(u.domain.name, { state: "offline", business: u.profile?.business || "", at: Date.now() });
+/**
+ * Takes the site offline. With `suspend` (unpaid, refunded, disputed, admin) it stays offline
+ * until that's cleared; without it (plan ended) it just goes offline.
+ */
+export async function takeOffline(uid, why, { suspend = null } = {}) {
+  // Mark it first, so a publish already running sees it and backs off.
+  await userRef(uid).set({ live: { ...(suspend ? { suspended: suspend } : {}), offlineReason: why } }, { merge: true });
+  let token = null;
+  for (let i = 0; i < 3 && !token; i++) {
+    token = await acquire(uid, 120);
+    if (!token) await new Promise((r) => setTimeout(r, 1500));
   }
-  if (u.domain?.state === "registered" && u.domain?.autoRenew && !u.domain?.test) {
+  try {
+    await offlineLocked(uid, why, suspend);
+  } finally {
+    if (token) await release(uid, token);
+  }
+}
+async function offlineLocked(uid, why, suspend) {
+  const u = (await userRef(uid).get()).data() || {};
+  if (u.domain?.name) {
+    await kvPut(u.domain.name, { state: "offline", business: u.profile?.business || "", at: Date.now() }).catch((err) => {
+      if (!(err instanceof Step)) throw err; // hosting not set up: nothing is online anyway
+    });
+  }
+  if (ENDED_STATUSES.includes(u.plan?.status) && u.domain?.state === "registered" && u.domain?.autoRenew && !u.domain?.test) {
     try {
       await cf("PUT", `/accounts/{account}/registrar/domains/${u.domain.name}`, { auto_renew: false });
       await userRef(uid).set({ domain: { autoRenew: false } }, { merge: true });
@@ -199,62 +376,176 @@ export async function takeOffline(uid, why) {
       logger.warn("auto-renew not turned off", { uid, err: String(err) });
     }
   }
-  await userRef(uid).set({ live: { state: "offline", offlineReason: why, offlineAt: FieldValue.serverTimestamp() } }, { merge: true });
-  logger.info("site offline", { uid, why });
+  if (u.live?.state === "live") {
+    await userRef(uid).set({ live: { state: "offline", offlineAt: FieldValue.serverTimestamp() } }, { merge: true });
+  }
+  logger.info("site offline", { uid, why, suspend });
 }
 
-/** A problem that stops the launch; `state` is what the customer's page shows. */
-export class Step extends Error {
-  constructor(message, state = "needs_attention") {
-    super(message);
-    this.state = state;
-  }
+/** Lifts a suspension (admin "Put back online", or a payment for "unpaid") and re-queues. */
+export async function restore(uid) {
+  await userRef(uid).set({ live: { suspended: null }, launch: { queued: true, nextAt: new Date() } }, { merge: true });
 }
 
 /**
  * Moves a paid customer's launch forward as far as it can go right now.
  * Returns the launch state ("live", "waiting_payment", "domain_pending", ...) or "busy".
  */
-export async function advance(uid, reason) {
-  if (!(await acquire(uid))) return "busy";
+export async function advance(uid, reason, opts = {}) {
+  const r = await withLease(uid, () => advanceLocked(uid, reason, opts));
+  return r;
+}
+
+async function advanceLocked(uid, reason, opts) {
+  let attempts = 0;
   try {
     let u = (await userRef(uid).get()).data() || {};
-    if (!u.plan?.subscriptionId) return "no_plan";
-    if (!u.plan.paid) {
-      const inv = await paidInvoice(u.plan.subscriptionId, u.plan.customerId);
+    attempts = u.launch?.attempts || 0;
+    const plan = currentPlan(u);
+    if (!plan?.subscriptionId) {
+      await setLaunch(uid, "no_plan");
+      return "no_plan";
+    }
+    if (u.live?.suspended) {
+      await setLaunch(uid, "suspended", { error: OFFLINE_WHY[u.live.suspended] || OFFLINE_WHY.admin });
+      return "suspended";
+    }
+    if (ENDED_STATUSES.includes(plan.status) || plan.status === "paused") {
+      await userRef(uid).set({ launch: { queued: false, nextAt: null } }, { merge: true });
+      return plan.status;
+    }
+    if (!plan.paid) {
+      const inv = await paidInvoice(plan.subscriptionId, plan.customerId);
       if (!inv) {
-        await setLaunch(uid, "waiting_payment");
+        if (plan.firstChargeFailedAt) {
+          // Look again every half hour for a week, in case the webhook for a late payment is missed.
+          const recent = Date.now() - ms(plan.firstChargeFailedAt) < 7 * 86400e3;
+          await setLaunch(uid, "payment_failed", { queued: recent, delayMs: 30 * step(), error: "Your card was declined. Pay the invoice Square emailed you, or change your card below and text (310) 279-8278." });
+          return "payment_failed";
+        }
+        // Keep checking for two days, then leave it to the webhook.
+        const waiting = Date.now() - ms(plan.startedAt || plan.startingAt) < 2 * 86400e3;
+        await setLaunch(uid, "waiting_payment", { queued: waiting });
         return "waiting_payment";
       }
-      await markPaid(uid, inv.id);
-      u = (await userRef(uid).get()).data();
+      await markPaid(uid, plan.subscriptionId, inv.id);
+      u = (await userRef(uid).get()).data() || {};
     }
-    if (u.plan.status !== "active") return u.launch?.state || u.plan.status;
+    if (!PAID_STATUSES.includes(u.plan.status)) return u.plan.status;
 
     await setLaunch(uid, "domain");
-    if (!(await ensureDomain(uid, u))) {
+    if (!(await ensureDomain(uid, u, opts))) {
       await setLaunch(uid, "domain_pending");
       return "domain_pending";
     }
-    u = (await userRef(uid).get()).data();
+    u = (await userRef(uid).get()).data() || {};
     if (u.live?.state !== "live") {
-      const r = await publishDraft(uid, u);
+      const r = await publishDraft(uid);
       if (!r.ok) return "needs_changes";
-      u = (await userRef(uid).get()).data();
+      u = (await userRef(uid).get()).data() || {};
     }
     await ensureHostnames(uid, u);
-    await setLaunch(uid, "live", { reasons: [] });
+    await setLaunch(uid, "live", { reasons: [], attempts: 0 });
     logger.info("launch advanced", { uid, reason, state: "live" });
     return "live";
   } catch (err) {
     const state = err instanceof Step ? err.state : "needs_attention";
     const message = err instanceof Step ? err.message : "Something went wrong while setting up your site. Web Burrito has been told and will fix it.";
-    logger.error("launch failed", { uid, reason, err: String(err) });
-    await setLaunch(uid, state, { error: message, detail: err instanceof Step ? null : String(err).slice(0, 300) });
+    if (!(err instanceof Step)) logger.error("launch failed", { uid, reason, err: String(err) });
+    // Unexpected errors are retried with growing gaps (1, 2, 4 ... 60 minutes); the admin sees them.
+    const retry = err instanceof Step ? {} : { queued: true, attempts: attempts + 1, delayMs: Math.min(2 ** attempts, 60) * step() };
+    await setLaunch(uid, state, { error: message, detail: err instanceof Step ? null : String(err).slice(0, 300), ...retry });
     return state;
-  } finally {
-    await release(uid);
   }
+}
+
+// ---------- the every-minute job ----------
+/** Finds checkouts whose subscription call got no clear answer, and settles them. */
+export async function reconcileCheckout(uid) {
+  return withLease(uid, async () => {
+    const u = (await userRef(uid).get()).data() || {};
+    const plan = currentPlan(u);
+    if (plan?.status !== "starting") return "nothing";
+    const age = Date.now() - ms(plan.startingAt);
+    if (plan.subAttemptAt && plan.customerId) {
+      const found = await square("POST", "/v2/subscriptions/search", {
+        query: { filter: { customer_ids: [plan.customerId], location_ids: [SQUARE_LOCATION_ID.value()] } },
+      });
+      // Only the one this checkout made: same card, same plan, created after the attempt began.
+      const since = ms(plan.subAttemptAt) - 120e3;
+      const sub = (found.subscriptions || []).find((s) => s.card_id === plan.cardId && s.plan_variation_id === plan.variationId
+        && Date.parse(s.created_at || 0) >= since && ["ACTIVE", "PENDING"].includes(s.status));
+      if (sub) {
+        await adoptSubscription(uid, sub.id);
+        return "adopted";
+      }
+    }
+    // Never reached the subscription step (the request died first): nothing to find after 5 minutes.
+    // Otherwise give Square 15 minutes to show the subscription before starting over.
+    if (age > (plan.subAttemptAt ? 15 : 5) * 60e3) {
+      await resetCheckout(uid, u.domain?.name);
+      return "reset";
+    }
+    return "waiting";
+  });
+}
+
+/** Saves a subscription as the customer's current one. */
+export async function adoptSubscription(uid, subscriptionId) {
+  const batch = db().batch();
+  batch.set(db().collection("subIndex").doc(subscriptionId), { uid, env: env() });
+  batch.set(userRef(uid), {
+    plan: { status: "pending_payment", subscriptionId, paid: false, payingUntil: null, startedAt: FieldValue.serverTimestamp() },
+    launch: { state: "waiting_payment", queued: true, nextAt: new Date(), error: null },
+  }, { merge: true });
+  await batch.commit();
+}
+
+/** Undoes a checkout that never reached Square (or definitely failed there). */
+export async function resetCheckout(uid, domain) {
+  await userRef(uid).set({ plan: { status: null, checkoutId: null, subAttemptAt: null, payingUntil: null } }, { merge: true });
+  if (domain) {
+    const owner = (await domainIndex(domain).get()).data();
+    // A name that was ever registered for this customer stays theirs.
+    if (owner?.uid === uid && !owner.registered) await domainIndex(domain).delete();
+  }
+}
+
+/** Every minute: move queued launches forward, settle unclear checkouts, enforce unpaid grace. */
+export async function tick({ budgetMs = 420_000 } = {}) {
+  const end = Date.now() + budgetMs;
+  const out = { advanced: 0, reconciled: 0, offline: 0, errors: 0 };
+  const each = async (docs, fn) => {
+    for (const d of docs) {
+      if (Date.now() > end) return;
+      try {
+        await fn(d);
+      } catch (err) {
+        out.errors += 1;
+        logger.error("launcher step failed", { uid: d.id, err: String(err) });
+      }
+    }
+  };
+  const due = await db().collection("users").where("launch.nextAt", "<=", new Date()).orderBy("launch.nextAt").limit(25).get();
+  await each(due.docs, async (d) => {
+    if (ms(d.get("lease.until")) > Date.now()) return;
+    await advance(d.id, "job");
+    out.advanced += 1;
+  });
+  const starting = await db().collection("users").where("plan.status", "==", "starting").limit(25).get();
+  await each(starting.docs, async (d) => {
+    await reconcileCheckout(d.id);
+    out.reconciled += 1;
+  });
+  const cutoff = Date.now() - PAST_DUE_GRACE_DAYS.value() * 86400e3;
+  const late = await db().collection("users").where("plan.status", "==", "past_due").limit(100).get();
+  await each(late.docs, async (d) => {
+    if (ms(d.get("plan.pastDueSince")) < cutoff && !d.get("live.suspended")) {
+      await takeOffline(d.id, "unpaid", { suspend: "unpaid" });
+      out.offline += 1;
+    }
+  });
+  return out;
 }
 
 // ---------- one-time hosting setup (admin) ----------

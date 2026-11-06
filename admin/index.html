@@ -346,7 +346,7 @@ onAuthStateChanged(auth, async (user) => {
   start();
   syncDevice();
   renderSetup();
-  appApi("/admin/sweep").catch(() => {}); // takes sites offline after the grace period for failed payments
+  appApi("/admin/tick").catch(() => {}); // the every-minute job, once now: launches, unclear checkouts, unpaid sites
 });
 $("me").addEventListener("change", (e) => { setMe(e.target.checked); syncDevice(); });
 
@@ -424,6 +424,10 @@ function start() {
       customers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       renderCustomers();
     }, (e) => $("customers").replaceChildren(h("li", null, h("span", { class: "empty" }, `Couldn't load customers (${e.code || e.message}).`)))),
+    onSnapshot(collection(db, "orphans"), (snap) => {
+      orphans = snap.size;
+      renderCustomers();
+    }, () => {}),
     onSnapshot(query(collection(db, "leads"), orderBy("createdAt", "desc"), limit(200)), (snap) => {
       leads = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       renderLeads();
@@ -432,27 +436,32 @@ function start() {
 }
 
 // ---------- customers (webburrito.com/app/) ----------
+let appBase = null; // the function's own address (requests through /api are cut off after 60 seconds)
 async function appApi(path, body = {}) {
+  appBase ??= await fetch("/api/app/config").then((r) => r.json()).then((c) => c.apiBase).catch(() => "/api/app");
   const token = await auth.currentUser.getIdToken();
-  const r = await fetch(`/api/app${path}`, {
+  const r = await fetch(`${appBase}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ ...body, _auth: token }),
+    body: JSON.stringify(body),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || j.ok === false) throw new Error(j.error || `HTTP ${r.status}`);
   return j;
 }
 let customers = [];
+let orphans = 0;
 const LAUNCH = {
   live: ["ok", "live"], waiting_payment: ["", "waiting for payment"], domain: ["", "buying domain"], domain_pending: ["", "domain pending"],
   checking: ["", "checking site"], publishing: ["", "publishing"], needs_changes: ["warn", "customer must fix site"],
-  needs_domain: ["bad", "needs a new domain"], needs_attention: ["bad", "needs you"],
+  needs_domain: ["bad", "needs a new domain"], needs_attention: ["bad", "needs you"], payment_failed: ["bad", "first payment failed"],
+  suspended: ["bad", "offline"], starting: ["", "confirming payment"], paid: ["", "paid"], no_plan: ["", "no plan"],
 };
 function renderCustomers() {
   const paying = customers.filter((c) => c.plan?.paid && ["active", "past_due", "canceling"].includes(c.plan?.status));
   $("cust-count").textContent = customers.length ? `(${paying.length} paying)` : "";
-  $("cust-note").textContent = customers.length ? `${customers.length} signed up` : "";
+  $("cust-note").textContent = [customers.length ? `${customers.length} signed up` : "",
+    orphans ? `${orphans} Square subscription${orphans === 1 ? "" : "s"} with no account: check Square (Firestore: orphans)` : ""].filter(Boolean).join(". ");
   if (!customers.length) {
     $("customers").replaceChildren(h("li", null, h("span", { class: "empty" }, "No sign-ups yet. Customers appear here when they sign in at webburrito.com/app/.")));
     return;
@@ -464,7 +473,8 @@ function renderCustomers() {
       h("span", { class: "what" }, c.profile?.business || c.email || c.id,
         c.plan?.id ? h("span", { class: "pill" }, `${c.plan.id} ${c.plan.billing || ""}`) : null,
         c.plan?.status && c.plan.status !== "active" ? h("span", { class: "pill bad" }, c.plan.status) : null,
-        h("span", { class: `pill ${tone}`.trim() }, label)),
+        h("span", { class: `pill ${tone}`.trim() }, label),
+        ...flags(c).map((f) => h("span", { class: "pill warn" }, f))),
       h("span", { class: "when" }, ago(c.createdAt)),
       h("span", { class: "meta" }, [c.email, c.profile?.city, c.domain?.name, c.claimedSlug ? `from preview ${c.claimedSlug}` : null,
         c.builds?.free ? `${c.builds.free} free tries used` : null].filter(Boolean).join(" · ")),
@@ -472,9 +482,21 @@ function renderCustomers() {
       h("span", { class: "acts" },
         site ? h("a", { href: site, target: "_blank", rel: "noopener" }, "Open site") : null,
         c.plan?.subscriptionId && c.launch?.state !== "live" ? h("button", { type: "button", class: "ghost", onclick: (e) => act(e, "/admin/retry", c.id) }, "Retry launch") : null,
-        site ? h("button", { type: "button", class: "ghost", onclick: (e) => confirm(`Take ${c.domain.name} offline?`) && act(e, "/admin/offline", c.id) }, "Take offline") : null,
+        site && !c.live?.suspended ? h("button", { type: "button", class: "ghost", onclick: (e) => confirm(`Take ${c.domain.name} offline?`) && act(e, "/admin/offline", c.id) }, "Take offline") : null,
+        c.live?.suspended ? h("button", { type: "button", class: "ghost", onclick: (e) => confirm(`Put ${c.domain?.name || "this site"} back online? (offline because: ${c.live.suspended})`) && act(e, "/admin/restore", c.id) }, "Put back online") : null,
       ));
   }));
+}
+// Things to look at that don't stop the launch.
+function flags(c) {
+  const running = ["active", "past_due", "canceling"].includes(c.plan?.status);
+  return [
+    running && c.domain?.state === "registered" && !c.domain?.test && c.domain?.autoRenew === false ? "domain auto-renew off" : null,
+    c.plan?.partialRefundAt ? "partly refunded" : null,
+    c.flags?.otherRefundAt ? "refund on another payment" : null,
+    c.flags?.otherDisputeAt ? "dispute on another payment" : null,
+    c.flags?.paidAfterEndAt ? "paid after the plan ended: refund it in Square" : null,
+  ].filter(Boolean);
 }
 async function act(e, path, uid) {
   const b = e.currentTarget;
@@ -490,7 +512,8 @@ async function renderSetup() {
     $("setup-square").hidden = c.ready.payments;
     $("setup-hosting").hidden = c.ready.hosting;
   } catch {
-    $("setup-state").textContent = "the platform isn't deployed yet.";
+    $("setup-state").textContent = "off. Add the four keys, set PLATFORM=on in functions/.env and deploy (README, \"Going live with the platform\").";
+    $("setup-square").hidden = $("setup-hosting").hidden = true;
   }
 }
 for (const [id, path] of [["setup-square", "/admin/setup-square"], ["setup-hosting", "/admin/setup-hosting"]]) {
