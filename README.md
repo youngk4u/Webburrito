@@ -107,7 +107,7 @@ These are done for the `web-burrito` project; they're kept here in case the proj
 
 ### Automatic deploys (replaces GitHub Pages' auto-publish)
 
-Once this is set up, every push to `main` publishes the site (so each day's new previews go live by themselves), and every pull request gets its own preview link, posted as a PR comment. `bash tools/go_live.sh` offers to set it up at the end (once).
+Once this is set up, every push to `main` publishes the site (so each day's new previews go live by themselves), and every pull request gets its own preview link, posted as a PR comment. `bash tools/go_live.sh` offers to set it up at the end (once); to set it up on its own, or try again, run `bash tools/go_live.sh --publishing`. (Right after Firebase makes the deploy account, Google can take a minute to finish it, and the first try can stop with "Service account ... does not exist". The script then tries once more.)
 
 **One command** (from `~/webburrito-deploy`): `firebase init hosting:github`. Sign in to GitHub when it asks, type `youngk4u/Webburrito` as the repository, and answer **No** to every question about writing or overwriting workflow files and build scripts (the repo already has its workflows). It creates the deploy account and stores its key on GitHub as `FIREBASE_SERVICE_ACCOUNT_WEB_BURRITO`, which the workflows use.
 

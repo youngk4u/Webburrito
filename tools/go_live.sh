@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Turns on the Web Burrito customer platform (webburrito.com/app/) in one go.
 #
-#   bash tools/go_live.sh          first time: test mode (Square sandbox, test cards, no domain bought)
-#   bash tools/go_live.sh --real   later: real payments and real domains
+#   bash tools/go_live.sh               first time: test mode (Square sandbox, test cards, no domain bought)
+#   bash tools/go_live.sh --real        later: real payments and real domains
+#   bash tools/go_live.sh --publishing  only (re)do automatic publishing: every push to main goes online
 #
 # Run it in Terminal from your copy of the repo (~/webburrito-deploy). It asks for each key with
 # hidden typing and stores it in Google Secret Manager. Keys are never shown or written to a file.
@@ -11,7 +12,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 REAL=0
-[ "${1:-}" = "--real" ] && REAL=1
+PUBLISHING_ONLY=0
+case "${1:-}" in
+  --real) REAL=1 ;;
+  --publishing) PUBLISHING_ONLY=1 ;;
+esac
 ENV_FILE=functions/.env
 bold() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 pause() { read -r -p "Press Enter when that's done. " _; }
@@ -70,6 +75,45 @@ apply_settings() {
 $SETTINGS
 EOF2
 }
+
+# Automatic publishing: firebase init hosting:github makes a deploy account in your project and
+# stores its key on GitHub. Google can take a minute to finish making that account, and the first
+# try then stops with "Service account ... does not exist" (404), so it tries once more.
+publishing() {
+  local answer
+  bold "Automatic publishing (once)"
+  cat <<'TXT'
+  So each day's new previews go online by themselves. Firebase asks a few questions and opens
+  GitHub in your browser to connect. Answer:
+    GitHub repository:  youngk4u/Webburrito
+    Run a build script before every deploy?  No
+    Overwrite firebase-hosting-pull-request.yml / firebase-hosting-merge.yml?  No (both)
+    Automatic deployment when a PR is merged?  Yes, branch: main
+TXT
+  read -r -p "  Set it up now? [Y/n] " answer
+  case "$answer" in n|N|no|No) echo "  Skipped. Later: bash tools/go_live.sh --publishing"; return ;; esac
+  local ok=0
+  if firebase init hosting:github; then ok=1
+  else
+    echo "  Google is still finishing the deploy account. Trying again in a minute (answer the same way)..."
+    sleep "${GO_LIVE_RETRY_WAIT:-60}"
+    firebase init hosting:github && ok=1
+  fi
+  # The repo's own workflow files already do the deploys: keep them as they are.
+  git checkout -q -- .github .firebaserc 2>/dev/null || true
+  if [ "$ok" = 1 ]; then
+    mkdir -p .firebase && touch .firebase/github-deploys
+    echo "  ✓ automatic publishing is on: pushes to main now go online by themselves"
+  else
+    echo "  That didn't finish. Try again later with: bash tools/go_live.sh --publishing"
+  fi
+}
+
+if [ "$PUBLISHING_ONLY" = 1 ]; then
+  firebase projects:list >/dev/null 2>&1 || firebase login --reauth
+  publishing
+  exit 0
+fi
 
 CURRENT_ENV=$(grep -E '^SQUARE_ENVIRONMENT=' "$ENV_FILE" | cut -d= -f2)
 if [ "$REAL" = 0 ] && [ "$CURRENT_ENV" = production ]; then
@@ -166,31 +210,7 @@ if [ -n "$(git rev-list origin/main..HEAD)" ]; then
 fi
 
 # Once: every push to main on GitHub (like each day's new previews) then goes online by itself.
-if [ ! -f .firebase/github-deploys ]; then
-  bold "6. Automatic publishing (once)"
-  cat <<'TXT'
-  So each day's new previews go online by themselves. Firebase asks a few questions and opens
-  GitHub in your browser to connect. Answer:
-    GitHub repository:  youngk4u/Webburrito
-    Run a build script before every deploy?  No
-    Overwrite firebase-hosting-pull-request.yml / firebase-hosting-merge.yml?  No (both)
-    Automatic deployment when a PR is merged?  Yes, branch: main
-TXT
-  read -r -p "  Set it up now? [Y/n] " answer
-  case "$answer" in
-    n|N|no|No) echo "  Skipped. Run this script again any time to set it up." ;;
-    *)
-      if firebase init hosting:github; then
-        mkdir -p .firebase && touch .firebase/github-deploys
-        echo "  ✓ automatic publishing is on"
-      else
-        echo "  That didn't finish. Run this script again to try again."
-      fi
-      # The repo's own workflow files already do the deploys: keep them as they are.
-      git checkout -q -- .github .firebaserc 2>/dev/null || true
-      ;;
-  esac
-fi
+[ -f .firebase/github-deploys ] || publishing
 
 bold "Done"
 if [ "$REAL" = 0 ]; then
