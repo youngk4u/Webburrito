@@ -165,6 +165,33 @@ if [ -n "$(git rev-list origin/main..HEAD)" ]; then
   fi
 fi
 
+# Once: every push to main on GitHub (like each day's new previews) then goes online by itself.
+if [ ! -f .firebase/github-deploys ]; then
+  bold "6. Automatic publishing (once)"
+  cat <<'TXT'
+  So each day's new previews go online by themselves. Firebase asks a few questions and opens
+  GitHub in your browser to connect. Answer:
+    GitHub repository:  youngk4u/Webburrito
+    Run a build script before every deploy?  No
+    Overwrite firebase-hosting-pull-request.yml / firebase-hosting-merge.yml?  No (both)
+    Automatic deployment when a PR is merged?  Yes, branch: main
+TXT
+  read -r -p "  Set it up now? [Y/n] " answer
+  case "$answer" in
+    n|N|no|No) echo "  Skipped. Run this script again any time to set it up." ;;
+    *)
+      if firebase init hosting:github; then
+        mkdir -p .firebase && touch .firebase/github-deploys
+        echo "  ✓ automatic publishing is on"
+      else
+        echo "  That didn't finish. Run this script again to try again."
+      fi
+      # The repo's own workflow files already do the deploys: keep them as they are.
+      git checkout -q -- .github .firebaserc 2>/dev/null || true
+      ;;
+  esac
+fi
+
 bold "Done"
 if [ "$REAL" = 0 ]; then
   cat <<'TXT'

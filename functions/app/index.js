@@ -6,7 +6,7 @@
 //
 //   GET  /config            public settings for the customer page
 //   POST /profile           save business details
-//   POST /claim             start from a Web Burrito preview (slug + passcode; decrypted here)
+//   POST /claim             start from a Web Burrito preview (slug + its personal link's key, or the passcode)
 //   POST /build             AI builds or edits the draft (3 free tries, then a monthly allowance)
 //   POST /undo              go back to the draft before the last change
 //   POST /domain-check      is a domain free, and its price
@@ -201,10 +201,14 @@ const ROUTES = {
   async "/claim"(user, body, res) {
     await rateLimit(user.uid, "claim", 20, 3600);
     const slug = text(body.slug, 80);
-    const passcode = text(body.passcode, 40);
+    const key = text(body.key, 64);
+    const passcode = key ? "" : text(body.passcode, 40);
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new UserError(400, "That preview link doesn't look right.");
-    if (!passcode) throw new UserError(400, "Type the passcode.");
-    const raw = await openPreview(slug, passcode);
+    if (!key && !passcode) throw new UserError(400, "Open your preview from the link we sent you, or type its passcode.");
+    const raw = await openPreview(slug, { key, passcode });
+    // Only the business's personal link proves it was sent to them. With the shared passcode,
+    // Web Burrito checks it's the owner before a domain is bought in their name (launch.js).
+    const verified = Boolean(key);
     // Becomes the live version: no concept banner, no noindex, forms -> call/text box...
     const { html: cleaned, facts } = livePreview(raw);
     // ...then one careful pass for wording that only made sense on the preview (a few cents),
@@ -218,9 +222,10 @@ const ROUTES = {
     // It's still checked before going live (preview leftovers, the domain, everything else).
     await userRef(user.uid).set({
       claimedSlug: slug, profile, trustedHashes: FieldValue.arrayUnion(hash),
-      claim: { slug, polished, listingLines, at: FieldValue.serverTimestamp() },
+      claim: { slug, polished, listingLines, verified, at: FieldValue.serverTimestamp(), approvedBy: FieldValue.delete(), approvedAt: FieldValue.delete() },
     }, { merge: true });
-    await log(user.uid, "builder", `Your site from webburrito.com/${slug} is ready. Check your hours, phone and address, and ask here for any changes.`);
+    await log(user.uid, "builder", `Your site from webburrito.com/${slug} is ready. Check your hours, phone and address, and ask here for any changes.`
+      + (verified ? "" : " Because it was opened with the passcode instead of your personal link, Web Burrito confirms you're the owner before it goes live (usually within a day)."));
     res.json({ ok: true, profile });
   },
 
@@ -558,8 +563,11 @@ async function voidOpenInvoices(subscriptionId) {
   }
 }
 
-/** Opens a Web Burrito preview with its passcode, the same way the preview page does. */
-async function openPreview(slug, passcode) {
+/**
+ * Opens a Web Burrito preview the same way the preview page does: with the secret from its
+ * personal link (webburrito.com/<slug>/#k=..., see tools/preview_crypto.py) or with the passcode.
+ */
+async function openPreview(slug, { key, passcode }) {
   const r = await fetch(`${SITE_ORIGIN.value()}/${slug}/`, { redirect: "error" }).catch(() => null);
   const page = r?.ok ? await r.text() : "";
   const m = /<script type="application\/json" id="payload">([\s\S]*?)<\/script>/.exec(page);
@@ -570,13 +578,21 @@ async function openPreview(slug, passcode) {
   const subtle = webcrypto.subtle;
   let html;
   try {
-    const base = await subtle.importKey("raw", new TextEncoder().encode(passcode), "PBKDF2", false, ["deriveKey"]);
-    const key = await subtle.deriveKey({ name: "PBKDF2", salt: b(P.salt), iterations: Math.min(Number(P.iter) || 0, 2_000_000), hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
-    let buf = Buffer.from(await subtle.decrypt({ name: "AES-GCM", iv: b(P.iv) }, key, b(P.ct)));
+    let pageKey;
+    if (key) {
+      if (!/^[A-Za-z0-9_-]{22}$/.test(key) || !P.lk?.iv || !P.lk?.ct) throw new Error("no link");
+      const lk = await subtle.importKey("raw", await subtle.digest("SHA-256", Buffer.from(key, "base64url")), "AES-GCM", false, ["decrypt"]);
+      const raw = await subtle.decrypt({ name: "AES-GCM", iv: b(P.lk.iv) }, lk, b(P.lk.ct));
+      pageKey = await subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    } else {
+      const base = await subtle.importKey("raw", new TextEncoder().encode(passcode), "PBKDF2", false, ["deriveKey"]);
+      pageKey = await subtle.deriveKey({ name: "PBKDF2", salt: b(P.salt), iterations: Math.min(Number(P.iter) || 0, 2_000_000), hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    }
+    let buf = Buffer.from(await subtle.decrypt({ name: "AES-GCM", iv: b(P.iv) }, pageKey, b(P.ct)));
     if (P.z === "gz") buf = gunzipSync(buf, { maxOutputLength: 2_000_000 });
     html = buf.toString("utf8");
   } catch {
-    throw new UserError(400, "That passcode didn't work.");
+    throw new UserError(400, key ? "That link didn't open the preview. Open it from the email we sent, or type the passcode." : "That passcode didn't work.");
   }
   const page2 = cleanHtml(html);
   if (!page2) throw new UserError(400, "Couldn't read that preview.");
@@ -879,6 +895,11 @@ const ADMIN = {
   async "/admin/retry"(user, body, res) {
     const uid = text(body.uid, 128);
     if (!uid) throw new UserError(400, "Which customer?");
+    // A preview claimed with the passcode waits for this: the admin has checked it's the owner.
+    const u = await getUser(uid);
+    if (u.claim?.verified === false) {
+      await userRef(uid).set({ claim: { verified: true, approvedBy: user.email, approvedAt: FieldValue.serverTimestamp() } }, { merge: true });
+    }
     res.json({ ok: true, state: await advance(uid, `admin ${user.email}`, { approveDomain: true }) });
   },
 

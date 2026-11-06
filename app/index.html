@@ -185,7 +185,7 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
           <h3>Start from your preview</h3>
           <p class="muted small">Got a link from Web Burrito, like webburrito.com/your-shop? Start from that design.</p>
           <label>Preview link<input id="claim-link" placeholder="webburrito.com/your-shop" required></label>
-          <label>Passcode<input id="claim-code" inputmode="numeric" autocomplete="off" required></label>
+          <label>Passcode <span class="muted small">(not needed with your personal link)</span><input id="claim-code" inputmode="numeric" autocomplete="off"></label>
           <div><button type="submit" id="claim-go">Use this design</button></div>
           <p class="muted small" id="claim-note" role="status"></p>
           <p class="err" id="claim-err" role="alert"></p>
@@ -476,12 +476,17 @@ const claimSlug = (() => {
   return null;
 })();
 const titleCase = (slug) => slug.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
-function pendingCode(slug) {
+// How the preview was opened on this device: its personal link's key (the preview page keeps it as
+// wb-k:<slug>), or the passcode. Only the personal link launches without Web Burrito's check.
+const keyFor = (slug) => { try { return localStorage.getItem(`wb-k:${slug}`); } catch { return null; } };
+function pendingCred(slug) {
   try {
     const p = JSON.parse(localStorage.getItem("wb-claim") || "null");
-    if (p?.slug === slug && Date.now() - p.at < 86400e3 && p.code) return String(p.code);
+    if (p?.slug === slug && Date.now() - p.at < 86400e3 && (p.key || p.code)) return p.key ? { key: String(p.key) } : { code: String(p.code) };
   } catch {}
-  try { return sessionStorage.getItem("wb-preview-code"); } catch { return null; }
+  const key = keyFor(slug);
+  if (key) return { key };
+  try { return { code: sessionStorage.getItem("wb-preview-code") }; } catch { return {}; }
 }
 const forgetClaim = () => { try { localStorage.removeItem("wb-claim"); } catch {} };
 if (claimSlug) {
@@ -525,10 +530,10 @@ async function autoClaim(uid) {
   autoClaimed = true;
   if (me?.claimedSlug === claimSlug && draft?.html) { forgetClaim(); return; } // already theirs: keep their changes
   $("claim-link").value = `webburrito.com/${claimSlug}`;
-  const code = pendingCode(claimSlug);
-  if (!code) { render(); $("claim-code").focus(); return; }
-  $("claim-code").value = code;
-  await claim(claimSlug, code);
+  const cred = pendingCred(claimSlug);
+  if (!cred.key && !cred.code) { render(); $("claim-code").focus(); return; }
+  if (cred.code) $("claim-code").value = cred.code;
+  await claim(claimSlug, cred);
   if (auth.currentUser?.uid === uid) history.replaceState(null, "", "/app/");
 }
 
@@ -624,13 +629,13 @@ $("undo").addEventListener("click", async () => {
   try { await api("/undo"); } catch (err) { $("ask-err").textContent = err.message; }
 });
 
-// Start from a Web Burrito preview: the server opens it with the passcode and gets it ready to go live.
-async function claim(slug, passcode) {
+// Start from a Web Burrito preview: the server opens it (personal link key or passcode) and gets it ready to go live.
+async function claim(slug, cred) {
   $("claim-err").textContent = "";
   $("claim-note").textContent = "Getting your site ready to go live. About 20 seconds…";
   busy($("claim-go"), true, "Getting it ready…");
   try {
-    await api("/claim", { slug, passcode });
+    await api("/claim", cred.key ? { slug, key: cred.key } : { slug, passcode: cred.code });
     forgetClaim();
     return true;
   } catch (err) {
@@ -644,9 +649,13 @@ async function claim(slug, passcode) {
 }
 $("claim-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const slug = ($("claim-link").value.trim().toLowerCase().match(/(?:webburrito\.com\/)?([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/) || [])[1];
+  const link = $("claim-link").value.trim();
+  const slug = (link.toLowerCase().match(/(?:webburrito\.com\/)?([a-z0-9]+(?:-[a-z0-9]+)*)\/?(?:[?#].*)?$/) || [])[1];
   if (!slug) return ($("claim-err").textContent = "Paste the link we sent you, like webburrito.com/your-shop.");
-  await claim(slug, $("claim-code").value.trim());
+  const key = (/#(?:.*&)?k=([A-Za-z0-9_-]{22})/.exec(link) || [])[1] || keyFor(slug);
+  const code = $("claim-code").value.trim();
+  if (!key && !code) return ($("claim-err").textContent = "Type the passcode, or paste the whole link from our email.");
+  await claim(slug, key ? { key } : { code });
 });
 
 // ---------- 3. go live ----------

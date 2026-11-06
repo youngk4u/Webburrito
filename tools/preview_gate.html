@@ -33,6 +33,7 @@ button:disabled{opacity:.6;cursor:wait}
 .err{min-height:1.5em;color:var(--salsa);font-weight:700}
 .help{margin-top:2rem;font-size:.92rem}
 .help a{color:inherit;font-weight:700}
+.opening .card{visibility:hidden}
 </style>
 </head>
 <body>
@@ -88,10 +89,23 @@ button:disabled{opacity:.6;cursor:wait}
 
   function bytes(s){var b=atob(s),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
   function unlock(code){
-    var enc=new TextEncoder();
-    return crypto.subtle.importKey('raw',enc.encode(code),'PBKDF2',false,['deriveKey'])
+    return crypto.subtle.importKey('raw',new TextEncoder().encode(code),'PBKDF2',false,['deriveKey'])
       .then(function(k){return crypto.subtle.deriveKey({name:'PBKDF2',salt:bytes(P.salt),iterations:P.iter,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['decrypt']);})
-      .then(function(key){return crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(P.iv)},key,bytes(P.ct));})
+      .then(read);
+  }
+  // The business's personal link (webburrito.com/<slug>/#k=...) opens it without the passcode:
+  // the link's secret unlocks a copy of the page key (tools/preview_crypto.py).
+  function unlockLink(k){
+    if(!P.lk||!/^[A-Za-z0-9_-]{22}$/.test(k))return Promise.reject(new Error('nolink'));
+    var b64=k.replace(/-/g,'+').replace(/_/g,'/')+'=='.slice(0,(4-k.length%4)%4);
+    return crypto.subtle.digest('SHA-256',bytes(b64))
+      .then(function(d){return crypto.subtle.importKey('raw',d,'AES-GCM',false,['decrypt']);})
+      .then(function(lk){return crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(P.lk.iv)},lk,bytes(P.lk.ct));})
+      .then(function(raw){return crypto.subtle.importKey('raw',raw,'AES-GCM',false,['decrypt']);})
+      .then(read);
+  }
+  function read(key){
+    return crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(P.iv)},key,bytes(P.ct))
       .then(function(buf){
         if(P.z!=='gz')return buf;
         if(!window.DecompressionStream)throw new Error('nods');
@@ -102,9 +116,15 @@ button:disabled{opacity:.6;cursor:wait}
       .then(function(buf){return new TextDecoder().decode(buf);});
   }
   // document.open() drops event listeners, so watch() starts after the site is written.
-  function show(html,code){track('unlock');document.open();document.write(html);document.close();window.scrollTo(0,0);watch();offer(code);}
+  // cred is how it was opened: {key} from the personal link, or {code} with the passcode.
+  // A link opens so fast that this page may still be loading, and document.open() does nothing then.
+  function show(html,cred){
+    if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){show(html,cred);});return;}
+    track('unlock');document.open();document.write(html);document.close();window.scrollTo(0,0);watch();offer(cred);
+  }
   // Once sign-ups are open (webburrito.com/app/), the banner takes the owner straight to it.
-  function offer(code){
+  // With the personal link it goes live by itself; with the passcode, Web Burrito checks first.
+  function offer(cred){
     fetch('/api/app/config').then(function(r){return r.ok?r.json():null;}).then(function(c){
       if(!c||!c.apiBase||!c.ready||!c.ready.payments||!c.ready.hosting||!c.ready.domains)return;
       // In test mode (Square sandbox) only your own devices see it, for trying the flow.
@@ -115,22 +135,40 @@ button:disabled{opacity:.6;cursor:wait}
       var a=document.createElement('a');
       a.href='/app/?claim='+encodeURIComponent(slug);a.textContent='Make it mine';
       a.setAttribute('style','display:inline-block;margin-left:.7rem;padding:.3rem 1rem;border-radius:999px;background:#FFD23F;color:#141210;font-weight:800;text-decoration:none;white-space:nowrap');
-      a.addEventListener('click',function(){try{localStorage.setItem('wb-claim',JSON.stringify({slug:slug,code:code,at:Date.now()}));}catch(e){}track('claim');});
+      a.addEventListener('click',function(){try{localStorage.setItem('wb-claim',JSON.stringify({slug:slug,key:cred.key||null,code:cred.code||null,at:Date.now()}));}catch(e){}track('claim');});
       bar.appendChild(a);
     }).catch(function(){});
   }
   var f=document.getElementById('f'), input=document.getElementById('code'), go=document.getElementById('go'), err=document.getElementById('err');
   track('load');
   if(!window.crypto||!crypto.subtle){err.textContent='Please open this link in Safari or Chrome.';go.disabled=true;return;}
-  var saved=null; try{saved=sessionStorage.getItem('wb-preview-code');}catch(e){}
-  if(saved){unlock(saved).then(function(html){show(html,saved);},function(){try{sessionStorage.removeItem('wb-preview-code');}catch(e){}});}
+  function forget(kind,key){try{window[kind].removeItem(key);}catch(e){}}
+  function trySaved(){
+    var saved=keep('sessionStorage','wb-preview-code');
+    if(saved)unlock(saved).then(function(html){show(html,{code:saved});},function(){forget('sessionStorage','wb-preview-code');});
+  }
+  // From the personal link, or a link opened on this device before.
+  var fromLink=(/[#&]k=([^&]*)/.exec(location.hash)||[])[1]||null;
+  var link=fromLink||keep('localStorage','wb-k:'+slug);
+  if(link){
+    document.documentElement.className+=' opening';
+    unlockLink(link).then(function(html){
+      try{localStorage.setItem('wb-k:'+slug,link);}catch(e){}
+      show(html,{key:link});
+    },function(e){
+      document.documentElement.className=document.documentElement.className.replace(' opening','');
+      if(!fromLink)forget('localStorage','wb-k:'+slug);
+      else err.textContent=e&&e.message==='nods'?'Please open this link in a newer Safari or Chrome.':"This link didn't open your preview. Type the passcode instead.";
+      trySaved();
+    });
+  } else trySaved();
   f.addEventListener('submit',function(e){
     e.preventDefault();
     var code=input.value.trim(); if(!code){input.focus();return;}
     go.disabled=true; go.textContent='Opening…'; err.textContent='';
     unlock(code).then(function(html){
       try{sessionStorage.setItem('wb-preview-code',code);}catch(e){}
-      show(html,code);
+      show(html,{code:code});
     },function(e){
       var old=e&&e.message==='nods';
       if(!old)track('fail');

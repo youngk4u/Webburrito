@@ -176,6 +176,11 @@ async function finishDomain(uid, domain) {
 async function ensureDomain(uid, u, { approveDomain = false } = {}) {
   const d = u.domain || {};
   if (!d.name) throw new Step("Pick a domain name.", "needs_domain");
+  // A preview claimed with the shared passcode instead of its personal link waits until Web
+  // Burrito has checked it's the owner (admin: "Approve and launch") before a domain is bought.
+  if (u.claim?.verified === false && d.state !== "registered" && !approveDomain) {
+    throw new Step("Your domain will be registered after a quick check by Web Burrito (usually within a day).", "needs_attention");
+  }
   if (!isLive()) {
     if (d.state !== "registered") await userRef(uid).set({ domain: { state: "registered", test: true, zoneId: null, autoRenew: false, error: null } }, { merge: true });
     return true;

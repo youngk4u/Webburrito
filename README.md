@@ -26,10 +26,17 @@ python3 tools/build_pages.py
 Concept sites live at `webburrito.com/<business-slug>/` behind a passcode. Only the encrypted page is in this repo.
 
 ```
-PREVIEW_PASSCODE=<code> python3 tools/build_previews.py <folder with concept sites> [slug ...]
+PREVIEW_PASSCODE=<code> PREVIEW_LINKS=<file outside the repo>.json python3 tools/build_previews.py <folder with concept sites> [slug ...]
 ```
 
 Each `<slug>/send.html` is encrypted with the passcode (AES-256-GCM) and wrapped in `tools/preview_gate.html`. The pages are marked noindex and are not in the sitemap.
+
+**Personal links.** Each preview also gets its own link, `https://webburrito.com/<slug>/#k=...`, printed by the build and saved to the `PREVIEW_LINKS` file. It opens the preview with no passcode to type, and it's what lets the owner put the site online by themselves with *Make it mine*. The secret after `#k=` never reaches the server logs or this repo (the repo is public): it goes in the sheet's *Preview link* column and in the pitch email, nowhere else. Rebuilding a preview keeps its link. To give older previews a link, or to replace a lost or leaked one:
+
+```
+PREVIEW_PASSCODE=<code> python3 tools/preview_links.py --out <file outside the repo>.json            # every preview without one
+PREVIEW_PASSCODE=<code> python3 tools/preview_links.py --new --out <file>.json <slug>               # replace that link
+```
 
 After changing `tools/preview_gate.html`, update every existing preview (no passcode needed; the encrypted part is untouched):
 
@@ -100,7 +107,7 @@ These are done for the `web-burrito` project; they're kept here in case the proj
 
 ### Automatic deploys (replaces GitHub Pages' auto-publish)
 
-Once this is set up, every push to `main` publishes the site (so each day's new previews go live by themselves), and every pull request gets its own preview link, posted as a PR comment.
+Once this is set up, every push to `main` publishes the site (so each day's new previews go live by themselves), and every pull request gets its own preview link, posted as a PR comment. `bash tools/go_live.sh` offers to set it up at the end (once).
 
 **One command** (from `~/webburrito-deploy`): `firebase init hosting:github`. Sign in to GitHub when it asks, type `youngk4u/Webburrito` as the repository, and answer **No** to every question about writing or overwriting workflow files and build scripts (the repo already has its workflows). It creates the deploy account and stores its key on GitHub as `FIREBASE_SERVICE_ACCOUNT_WEB_BURRITO`, which the workflows use.
 
@@ -144,7 +151,7 @@ Customers sign up at **webburrito.com/app/** and do everything themselves:
 
 Taps on *Make it mine* show up on `/admin/` with the visit ("tapped Make it mine"), so you can see who's about to buy. While the platform is in test mode, only your own devices (marked on `/admin/`) see the button.
 
-Anyone with a preview's passcode can claim that preview, and all previews of a batch share one passcode. A claimed page is still checked before it goes live, the domain is registered in the claimer's name (traceable), and they have to pay; if the wrong person claims a business, take the site offline on `/admin/`. For more protection, give each preview its own passcode in the pitch email.
+Only the business's personal link proves the preview was sent to them, so only a claim from it launches by itself. The shared passcode still opens every preview (for showing it in person, and for older pitch emails), and *Make it mine* works from there too, but after paying, that launch waits before any domain is bought: `/admin/` marks it "opened with the passcode: check it's the owner", and **Approve owner and launch** puts it online once you've checked (a call to the shop is enough). The customer sees "Your domain will be registered after a quick check by Web Burrito (usually within a day).
 
 Square webhooks record payments, failed payments, cancellations, refunds and chargebacks; a job (`launcher`) runs every minute to carry launches forward (a step that fails is retried with growing gaps, up to an hour apart), settle unclear checkouts and take sites offline 14 days after a failed payment. A full refund or a chargeback on the plan's own payment cancels the plan and takes the site down; one on some other payment of the same Square customer is only flagged. Canceling a paid-up plan keeps the site up until the end of the paid period; canceling an unpaid one (first payment pending, or a payment failed) ends it right away and voids the unpaid invoice. A domain bought for a customer stays theirs: nobody else can pick it, and if they come back later their new plan uses it again without buying it twice. Customers and their launch status are listed on `/admin/` under *Customers*, with *Retry launch*, *Take offline* and *Put back online*, plus warnings to look at: a domain whose auto-renew didn't turn on, a partial refund, a refund or dispute on another payment, a payment that came in after a plan ended (refund it in Square), and Square subscriptions on Web Burrito plans that no account claimed.
 

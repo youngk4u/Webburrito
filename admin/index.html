@@ -475,6 +475,7 @@ function renderCustomers() {
         c.plan?.id ? h("span", { class: "pill" }, `${c.plan.id} ${c.plan.billing || ""}`) : null,
         c.plan?.status && c.plan.status !== "active" ? h("span", { class: "pill bad" }, c.plan.status) : null,
         h("span", { class: `pill ${tone}`.trim() }, label),
+        unchecked(c) ? h("span", { class: "pill warn" }, "opened with the passcode: check it's the owner") : null,
         ...flags(c).map((f) => h("span", { class: "pill warn" }, f))),
       h("span", { class: "when" }, ago(c.createdAt)),
       h("span", { class: "meta" }, [c.email, c.profile?.city, c.domain?.name, c.claimedSlug ? `from preview ${c.claimedSlug}` : null,
@@ -482,12 +483,17 @@ function renderCustomers() {
       c.launch?.error || c.domain?.error ? h("span", { class: "meta", style: "color:var(--salsa)" }, c.launch?.detail || c.launch?.error || c.domain?.error) : null,
       h("span", { class: "acts" },
         site ? h("a", { href: site, target: "_blank", rel: "noopener" }, "Open site") : null,
-        c.plan?.subscriptionId && c.launch?.state !== "live" ? h("button", { type: "button", class: "ghost", onclick: (e) => act(e, "/admin/retry", c.id) }, "Retry launch") : null,
+        c.plan?.subscriptionId && c.launch?.state !== "live" && unchecked(c) ? h("button", { type: "button", class: "ghost", onclick: (e) => confirm(
+          `Is ${c.email} the owner of ${c.profile?.business || c.claimedSlug}? They claimed webburrito.com/${c.claimedSlug} with the passcode, not their personal link. Call the shop if you're not sure.`)
+          && act(e, "/admin/retry", c.id) }, "Approve owner and launch") : null,
+        c.plan?.subscriptionId && c.launch?.state !== "live" && !unchecked(c) ? h("button", { type: "button", class: "ghost", onclick: (e) => act(e, "/admin/retry", c.id) }, "Retry launch") : null,
         site && !c.live?.suspended ? h("button", { type: "button", class: "ghost", onclick: (e) => confirm(`Take ${c.domain.name} offline?`) && act(e, "/admin/offline", c.id) }, "Take offline") : null,
         c.live?.suspended ? h("button", { type: "button", class: "ghost", onclick: (e) => confirm(`Put ${c.domain?.name || "this site"} back online? (offline because: ${c.live.suspended})`) && act(e, "/admin/restore", c.id) }, "Put back online") : null,
       ));
   }));
 }
+// Claimed a preview with the shared passcode, not its personal link: its launch waits for you.
+const unchecked = (c) => c.claim?.verified === false;
 // Things to look at that don't stop the launch.
 function flags(c) {
   const running = ["active", "past_due", "canceling"].includes(c.plan?.status);
