@@ -100,7 +100,11 @@ These are done for the `web-burrito` project; they're kept here in case the proj
 
 ### Automatic deploys (replaces GitHub Pages' auto-publish)
 
-Once these steps are done, every push to `main` publishes the site, and every pull request gets its own preview link, posted as a PR comment.
+Once this is set up, every push to `main` publishes the site (so each day's new previews go live by themselves), and every pull request gets its own preview link, posted as a PR comment.
+
+**One command** (from `~/webburrito-deploy`): `firebase init hosting:github`. Sign in to GitHub when it asks, type `youngk4u/Webburrito` as the repository, and answer **No** to every question about writing or overwriting workflow files and build scripts (the repo already has its workflows). It creates the deploy account and stores its key on GitHub as `FIREBASE_SERVICE_ACCOUNT_WEB_BURRITO`, which the workflows use.
+
+Or by hand:
 
 1. In [Google Cloud console](https://console.cloud.google.com/iam-admin/serviceaccounts) (pick your project), go to *Service accounts → Create service account* and name it `github-deploy`. Give it these roles: **Firebase Hosting Admin**, **Firebase Authentication Admin**, **Cloud Run Viewer**, **API Keys Viewer**.
 2. Open the new account and go to *Keys → Add key → Create new key → JSON*. A file downloads.
@@ -135,10 +139,12 @@ Customers sign up at **webburrito.com/app/** and do everything themselves:
 
 1. **From their preview:** once sign-ups are open, every preview's banner gets a **Make it mine** button. It takes the owner to `/app/` with that preview; after signing in (Google or an emailed link) it's claimed by itself, no link or passcode to type. The preview is made ready to go live on the spot: concept banner and `noindex` removed, the order form becomes a "Call or text us" box, buttons that needed scripts are taken out, and one quick AI pass removes sentences that only made sense on a preview ("On the live site…", "Stand-in photos"). Their name, phone and address are read off the page.
 2. **Or from scratch:** fill in the business details and have the AI build a site. **3 free tries** before paying; after that, a monthly allowance by plan (20 / 40 / 100 changes). Changes come back as quick find-and-replace edits: a few seconds and a few cents each.
-3. **Pay:** pick a plan; their name as a .com is suggested and checked, and the domain owner's details are filled in from the business address. After the first payment clears, the server **buys the domain in their name** (Cloudflare Registrar), **checks the site with AI** (made-up claims, brand copying, phishing, broken pages; a claimed preview skips this, since Web Burrito made it) and **puts it online** with HTTPS. Usually under a minute.
+3. **Pay:** pick a plan; their name as a .com is suggested and checked, and the domain owner's details are filled in from the business address. After the first payment clears, the server **buys the domain in their name** (Cloudflare Registrar), **checks the site with AI** (made-up claims, brand copying, phishing, broken pages; on a claimed preview, the ratings and review quotes Web Burrito took from the business's public listings count as real) and **puts it online** with HTTPS. Usually under a minute.
 4. **Later:** ask for changes and click *Publish* (checked again first), set up email forwarding addresses (The Super: 3, The Loaded: 10), change card, cancel, or **download their site** (one HTML file; no lock-in). Every live site is indexable, has one canonical address, a sitemap, and the business's name, phone and address in schema.org form for Google.
 
-Taps on *Make it mine* show up on `/admin/` with the visit ("tapped Make it mine"), so you can see who's about to buy.
+Taps on *Make it mine* show up on `/admin/` with the visit ("tapped Make it mine"), so you can see who's about to buy. While the platform is in test mode, only your own devices (marked on `/admin/`) see the button.
+
+Anyone with a preview's passcode can claim that preview, and all previews of a batch share one passcode. A claimed page is still checked before it goes live, the domain is registered in the claimer's name (traceable), and they have to pay; if the wrong person claims a business, take the site offline on `/admin/`. For more protection, give each preview its own passcode in the pitch email.
 
 Square webhooks record payments, failed payments, cancellations, refunds and chargebacks; a job (`launcher`) runs every minute to carry launches forward (a step that fails is retried with growing gaps, up to an hour apart), settle unclear checkouts and take sites offline 14 days after a failed payment. A full refund or a chargeback on the plan's own payment cancels the plan and takes the site down; one on some other payment of the same Square customer is only flagged. Canceling a paid-up plan keeps the site up until the end of the paid period; canceling an unpaid one (first payment pending, or a payment failed) ends it right away and voids the unpaid invoice. A domain bought for a customer stays theirs: nobody else can pick it, and if they come back later their new plan uses it again without buying it twice. Customers and their launch status are listed on `/admin/` under *Customers*, with *Retry launch*, *Take offline* and *Put back online*, plus warnings to look at: a domain whose auto-renew didn't turn on, a partial refund, a refund or dispute on another payment, a payment that came in after a plan ended (refund it in Square), and Square subscriptions on Web Burrito plans that no account claimed.
 

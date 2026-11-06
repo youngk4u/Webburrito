@@ -76,7 +76,7 @@ export function livePreview(html) {
   // Notes that only made sense with the preview's form ("Use the form below"). Only an element
   // that is nothing but such a note goes: short, no phone number. Sentences inside other text are
   // left to the polish pass, so no real content is lost here.
-  const FORM_NOTE = /^on the live site\b|\bform below\b|\buse (the|this) form\b|\bfill (in|out) (the|this) form\b|\bleave your details\b/i;
+  const FORM_NOTE = /^(on the live site\b|prefer to (type|write) it\b|(or )?use (the|this) form\b|(or )?fill (in|out) (the|this) form\b|(or )?leave your details\b)/i;
   const noteOnly = (e) => { const t = textOf(e); return t.length < 120 && !/\d/.test(t) && FORM_NOTE.test(t); };
   for (const el of all((e) => hasClass(e, "formnote") || (["p", "small", "span", "li"].includes(e.name) && noteOnly(e)))) {
     removeElement(el);
@@ -89,14 +89,14 @@ export function livePreview(html) {
       `<p style="margin:0"><a href="tel:${tel}">${esc(phone)}</a> &nbsp;·&nbsp; <a href="sms:${tel}">Send a text</a></p></div>`,
     ));
   }
-  // Buttons outside forms: only ones with no content of their own go ("+"/"−", empty) and short
-  // "Send"/"Order" buttons. Menus, services and tabs are often built from buttons, so everything
+  // Buttons outside forms: only ones with no words of their own go ("+", "−", arrows, empty) and
+  // short "Send"/"Order" buttons. Menus, services and tabs are often built from buttons, so everything
   // else stays, looking the same; the polish pass removes switches that do nothing on their own.
   // Inputs and selects are dropped by the sanitizer; labels stay as text.
   const ACTION = /^(send|submit|order|request|book|reserve|search|go|get (a )?quote)\b/i;
   for (const el of all((e) => e.name === "button")) {
     const t = textOf(el);
-    if (t.length <= 2 || (t.length < 30 && ACTION.test(t))) removeElement(el);
+    if (/^[\s+\-−–×✕<>‹›«»←→↑↓]*$/.test(t) || (t.length < 30 && ACTION.test(t))) removeElement(el);
   }
 
   const facts = {
@@ -106,6 +106,23 @@ export function livePreview(html) {
     city: parts?.city || "",
   };
   return { html: out(doc), facts };
+}
+
+/**
+ * The lines of a claimed preview that come from the business's public listings (ratings, review
+ * counts, reviewer quotes), so later checks know Web Burrito put them there. Up to 40 lines.
+ */
+export function listingLinesOf(html) {
+  const doc = parse(html);
+  const LISTING = /\b(yelp|google|tripadvisor|facebook|reviews?|reviewers?|stars?|rated|rating)\b/i;
+  const lines = new Set();
+  for (const el of findAll((e) => e.type === "tag" && ["p", "li", "blockquote", "figcaption", "span", "small", "div", "h3", "h4"].includes(e.name), doc.children)) {
+    if (el.children.some((c) => c.type === "tag" && ["p", "li", "div", "blockquote"].includes(c.name))) continue; // innermost text only
+    const t = textOf(el);
+    if (t.length > 8 && t.length <= 300 && LISTING.test(t)) lines.add(t);
+    if (lines.size >= 40) break;
+  }
+  return [...lines];
 }
 
 /** Fills only the empty fields of a business profile from facts read off a preview. */

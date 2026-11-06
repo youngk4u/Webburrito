@@ -43,7 +43,7 @@ import {
 } from "./pure.js";
 import { square, cf, idem, ApiError } from "./clients.js";
 import { buildSite, polishClaim, PREVIEW_WORDING } from "./ai.js";
-import { livePreview, fillProfile, nameFromSlug } from "./site.js";
+import { livePreview, fillProfile, nameFromSlug, listingLinesOf } from "./site.js";
 import {
   advance, publishDraft, takeOffline, restore, setupHosting, setupSquarePlans, withLease, markPaid, queue, tick, reconcileCheckout,
   adoptSubscription, resetCheckout, userRef, draftRef, configRef, currentPlan, isPaid, Step, PAID_STATUSES, ENDED_STATUSES,
@@ -211,19 +211,21 @@ const ROUTES = {
     // done once per preview: claiming the same one again reuses it.
     const { html, polished } = await polishOnce(user.uid, slug, cleaned);
     const { hash } = await saveDraft(user.uid, html, "preview");
+    const listingLines = listingLinesOf(html); // ratings and reviewer lines Web Burrito collected
     const u = await getUser(user.uid);
     const profile = parseProfile(fillProfile(u.profile, facts, nameFromSlug(slug)));
     // This exact page is Web Burrito's work: its check allows the review quotes from public listings.
     // It's still checked before going live (preview leftovers, the domain, everything else).
     await userRef(user.uid).set({
       claimedSlug: slug, profile, trustedHashes: FieldValue.arrayUnion(hash),
-      claim: { slug, polished, at: FieldValue.serverTimestamp() },
+      claim: { slug, polished, listingLines, at: FieldValue.serverTimestamp() },
     }, { merge: true });
     await log(user.uid, "builder", `Your site from webburrito.com/${slug} is ready. Check your hours, phone and address, and ask here for any changes.`);
     res.json({ ok: true, profile });
   },
 
   async "/build"(user, body, res) {
+    await rateLimit(user.uid, "build", 30, 3600);
     const request = text(body.request, 2000);
     const u = await getUser(user.uid);
     if (!u.profile?.business) throw new UserError(400, "Fill in your business details first.");
@@ -241,8 +243,8 @@ const ROUTES = {
       });
       res.json({ ok: true, left: reserve.left });
     } catch (err) {
-      // Give the try back when Claude refused the request outright, or when nothing was made.
-      if ((err instanceof ApiError && err.status >= 400) || err.refund) await refundBuild(user.uid, reserve);
+      // Give the try back only when Claude refused the request outright (nothing was spent).
+      if (err instanceof ApiError && err.status >= 400) await refundBuild(user.uid, reserve);
       const msg = err instanceof ApiError ? "The builder is busy right now. Try again in a minute." : err.message;
       await log(user.uid, "builder", `That didn't work: ${msg}`, { failed: true });
       logger.error("build failed", { uid: user.uid, err: String(err) });
@@ -609,8 +611,11 @@ async function polishOnce(uid, slug, cleaned) {
   try {
     const html = await polishClaim(cleaned);
     if (!html) return { html: cleaned, polished: false };
-    if (PREVIEW_WORDING.test(html.replace(/<style[\s\S]*?<\/style>/gi, ""))) logger.warn("preview wording left after polish", { slug });
-    await ref.set({ key, html, at: FieldValue.serverTimestamp() });
+    if (PREVIEW_WORDING.test(html.replace(/<style[\s\S]*?<\/style>/gi, ""))) {
+      logger.warn("preview wording left after polish", { slug }); // not cached: the next claim tries again
+    } else {
+      await ref.set({ key, html, at: FieldValue.serverTimestamp() });
+    }
     return { html, polished: true };
   } catch (err) {
     logger.warn("claim polish skipped", { uid, slug, err: String(err) });

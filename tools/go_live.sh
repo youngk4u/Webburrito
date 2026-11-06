@@ -32,10 +32,11 @@ git diff --quiet -- "$ENV_FILE" || git checkout -q -- "$ENV_FILE"
 git pull -q --rebase origin main
 firebase projects:list >/dev/null 2>&1 || firebase login --reauth
 
-# Saves a key in Secret Manager. If one is saved already, asks whether to replace it.
+# Saves a key in Secret Manager. If one is saved already, asks whether to replace it (unless
+# the third argument is "always": then it must be typed again).
 secret() {
-  local name=$1 where=$2 value answer
-  if firebase functions:secrets:get "$name" >/dev/null 2>&1; then
+  local name=$1 where=$2 mode=${3:-} value answer
+  if [ "$mode" != always ] && firebase functions:secrets:get "$name" >/dev/null 2>&1; then
     read -r -p "  $name is already saved. Replace it? [y/N] " answer
     case "$answer" in y|Y|yes|Yes) ;; *) echo "  ✓ keeping $name"; return ;; esac
   fi
@@ -69,6 +70,21 @@ apply_settings() {
 $SETTINGS
 EOF2
 }
+
+CURRENT_ENV=$(grep -E '^SQUARE_ENVIRONMENT=' "$ENV_FILE" | cut -d= -f2)
+if [ "$REAL" = 0 ] && [ "$CURRENT_ENV" = production ]; then
+  # Real payments are on: never switch back to test mode. This run only replaces keys.
+  bold "Real payments are already on. This run only replaces keys (answer y to the ones to change)."
+  secret ANTHROPIC_API_KEY "Claude console -> API keys."
+  secret CLOUDFLARE_API_TOKEN "Cloudflare -> My Profile -> API Tokens (same permissions as before)."
+  secret SQUARE_ACCESS_TOKEN "Square app -> Credentials (Production) -> Production Access token."
+  secret SQUARE_WEBHOOK_SIGNATURE_KEY "Square app -> Webhooks (Production) -> your subscription -> Signature key."
+  bold "Putting the new keys to use"
+  (cd functions && npm ci --silent)
+  firebase deploy --only functions
+  bold "Done"
+  exit 0
+fi
 
 if [ "$REAL" = 0 ]; then
   bold "2. Accounts (once). Open each link, then come back here."
@@ -108,6 +124,8 @@ PLATFORM=on
 "
   MSG="Turn on the customer platform (test mode)"
 else
+  # The Claude and Cloudflare keys and the Cloudflare account come from the test-mode run.
+  grep -qE '^CLOUDFLARE_ACCOUNT_ID=[0-9a-f]{32}$' "$ENV_FILE" || { echo "Run bash tools/go_live.sh first (test mode). --real comes after that."; exit 1; }
   bold "Switching to real payments"
   cat <<'TXT'
   In the Square app, switch the page from "Sandbox" to "Production":
@@ -116,9 +134,9 @@ else
 TXT
   setting SQUARE_APPLICATION_ID "Production Application ID." '^sq0idp-[A-Za-z0-9_-]+$' "sq0idp-..."
   setting SQUARE_LOCATION_ID "Production Location ID (Web Burrito's is LAET0GFY9RXSR)." '^[A-Z0-9]{8,32}$' "like LAET0GFY9RXSR"
-  echo "  Now the two Production keys (answer y to replace the sandbox ones):"
-  secret SQUARE_ACCESS_TOKEN "Production Access token."
-  secret SQUARE_WEBHOOK_SIGNATURE_KEY "Signature key of the Production webhook subscription."
+  echo "  Now the two Production keys (they replace the sandbox ones):"
+  secret SQUARE_ACCESS_TOKEN "Production Access token." always
+  secret SQUARE_WEBHOOK_SIGNATURE_KEY "Signature key of the Production webhook subscription." always
   SETTINGS="${SETTINGS}SQUARE_ENVIRONMENT=production
 PLATFORM=on
 "

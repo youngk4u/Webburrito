@@ -19,7 +19,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      HAS_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+      HAS_SECRET: ${{ (secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_WEB_BURRITO) != '' }}
     steps:
       - name: Not set up yet
         if: env.HAS_SECRET != 'true'
@@ -29,5 +29,5 @@ jobs:
       - uses: FirebaseExtended/action-hosting-deploy@v0
         if: env.HAS_SECRET == 'true'
         with:
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_WEB_BURRITO }}
           channelId: live

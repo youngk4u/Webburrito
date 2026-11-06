@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  livePreview, applyEdits, parseUsAddress, suggestDomain, nameFromSlug, fillProfile, displayPhone, jsonLd, servedPage,
+  livePreview, applyEdits, parseUsAddress, suggestDomain, nameFromSlug, fillProfile, displayPhone, jsonLd, servedPage, listingLinesOf,
 } from "../app/site.js";
 import { sanitizeHtml } from "../app/pure.js";
 
@@ -37,6 +37,24 @@ test("livePreview turns a preview into a live page and reads the business detail
   assert.ok(/<p class="dj-credit" style="margin-top:1rem">Site by <a href="https:\/\/webburrito.com\/">Web Burrito<\/a><\/p>/.test(page), "live credit, styling kept");
   assert.ok(page.includes("A kolache straight from the case.") && page.includes("Café con leche &amp; more."), "everything else is kept as it was");
   assert.deepEqual(facts, { business: "Santa Fe Donuts", phone: "(405) 703-2118", address: "1060 SW 4th St, Moore, OK 73160", city: "Moore" });
+});
+
+test("livePreview keeps short real sentences and words on buttons", () => {
+  const { html } = livePreview(`<html><head><title>X · y</title></head><body><a href="tel:+15555550100">call</a>
+<p>Pork, poultry, lamb or game? Those get cut to order too, just write it in the order form below.</p>
+<p>Come in and eat, or call ahead and pick up. There's a form below.</p>
+<div class="pick"><button type="button">RV</button><button type="button">Car &amp; light truck</button><button type="button">→</button><button type="button"> </button></div>
+<p>Or leave your details and we'll get back to you.</p></body></html>`);
+  assert.ok(html.includes("Pork, poultry, lamb or game?") && html.includes("Come in and eat"), "sentences that only mention the form stay (the polish trims them)");
+  assert.ok(html.includes(">RV</button>") && html.includes("Car &amp; light truck"), "word buttons stay, even two letters");
+  assert.equal(html.includes("→"), false, "arrow-only buttons go");
+  assert.equal(html.includes("leave your details"), false, "a paragraph that is only the form note goes");
+});
+
+test("listingLinesOf collects the ratings and reviewer lines of a page", () => {
+  const lines = listingLinesOf(`<html><body><section><p>4.5 stars across 31 Google reviews</p><div><p>Reviewers call it "the best tacos in town."</p></div>
+<ul><li>Open daily 7am–3pm</li><li>From Yelp: friendly staff</li></ul><p>We make tamales.</p></section></body></html>`);
+  assert.deepEqual(lines, ["4.5 stars across 31 Google reviews", 'Reviewers call it "the best tacos in town."', "From Yelp: friendly staff"]);
 });
 
 test("livePreview without a phone drops the form instead of offering a dead box", () => {

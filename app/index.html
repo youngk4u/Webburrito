@@ -485,6 +485,7 @@ function pendingCode(slug) {
 }
 const forgetClaim = () => { try { localStorage.removeItem("wb-claim"); } catch {} };
 if (claimSlug) {
+  $("claim-link").value = `webburrito.com/${claimSlug}`;
   $("signin-title").textContent = "Make it yours";
   $("signin-lead").textContent = `Sign in to put ${titleCase(claimSlug)}'s website online on your own .com. Takes about 5 minutes.`;
 }
@@ -507,22 +508,21 @@ fa.onAuthStateChanged(auth, (user) => {
   show("v-app");
   const ref = fs.doc(db, "users", user.uid);
   stops.push(
-    fs.onSnapshot(ref, (s) => { me = s.data() || {}; render(); }, () => {}),
-    fs.onSnapshot(fs.doc(db, "users", user.uid, "site", "draft"), (s) => { draft = s.data() || null; draftLoaded = true; renderSite(); render(); }, () => {}),
+    fs.onSnapshot(ref, (s) => { me = s.data() || {}; render(); maybeAutoClaim(); }, () => {}),
+    fs.onSnapshot(fs.doc(db, "users", user.uid, "site", "draft"), (s) => { draft = s.data() || null; draftLoaded = true; renderSite(); render(); maybeAutoClaim(); }, () => {}),
     fs.onSnapshot(fs.query(fs.collection(db, "users", user.uid, "messages"), fs.orderBy("at", "asc"), fs.limitToLast(60)), (s) => renderMsgs(s.docs.map((d) => d.data())), () => {}),
   );
-  api("/status").then((r) => { canBuyNow = r.canBuy !== false; render(); }).catch(() => {}) // makes the account, moves a waiting launch forward
-    .then(() => autoClaim(user.uid));
+  api("/status").then((r) => { canBuyNow = r.canBuy !== false; render(); }).catch(() => {}); // makes the account, moves a waiting launch forward
 });
 
-// Came from a preview's "Make it mine": open it once, right after sign-in.
+// Came from a preview's "Make it mine": open it once, right after sign-in, as soon as both the
+// account and the draft have loaded (so a draft they already changed is never replaced).
 let autoClaimed = false;
+function maybeAutoClaim() {
+  if (claimSlug && !autoClaimed && me && draftLoaded && auth.currentUser) autoClaim(auth.currentUser.uid);
+}
 async function autoClaim(uid) {
-  if (!claimSlug || autoClaimed) return;
   autoClaimed = true;
-  // Wait for the account and the draft, so a draft they already changed is never replaced.
-  for (let i = 0; i < 60 && !(me && draftLoaded); i++) await new Promise((r) => setTimeout(r, 150));
-  if (!(me && draftLoaded)) { autoClaimed = false; return; }
   if (me?.claimedSlug === claimSlug && draft?.html) { forgetClaim(); return; } // already theirs: keep their changes
   $("claim-link").value = `webburrito.com/${claimSlug}`;
   const code = pendingCode(claimSlug);

@@ -320,16 +320,20 @@ export async function publishDraft(uid) {
     const used = u.reviews?.month === month ? u.reviews.count || 0 : 0;
     if (used >= limit) throw new Step(`You've used this month's site checks. Text (310) 279-8278 for more.`, "needs_changes");
     await setLaunch(uid, "checking");
-    const r = await reviewSite({ profile: u.profile || {}, html, domain: u.domain?.name || "", madeByWebBurrito });
+    const r = await reviewSite({ profile: u.profile || {}, html, domain: u.domain?.name || "", madeByWebBurrito, listingLines: u.claim?.listingLines || [] });
     if (r.transient) {
-      // The checker's answer couldn't be read. Try a few more times, then ask Web Burrito.
+      // The checker's answer couldn't be read. Try a few more times, then ask Web Burrito. Those
+      // calls are paid too, so there's also a monthly limit that a new page or profile can't reset.
       const tries = (u.reviewRetry?.hash === key ? u.reviewRetry.n || 0 : 0) + 1;
-      await userRef(uid).set({ reviewRetry: { hash: key, n: tries } }, { merge: true });
-      if (tries >= 5) throw new Step("The site check isn't finishing. Web Burrito has been told and will look at it.", "needs_attention");
+      const failed = (u.reviews?.month === month ? u.reviews.failed || 0 : 0) + 1;
+      const fresh = u.reviews?.month === month ? {} : { count: 0 }; // a new month starts both counts at 0
+      await userRef(uid).set({ reviewRetry: { hash: key, n: tries }, reviews: { month, failed, ...fresh } }, { merge: true });
+      if (tries >= 5 || failed >= 15) throw new Step("The site check isn't finishing. Web Burrito has been told and will look at it.", "needs_attention");
       throw new Step("The site check didn't finish. It will try again in a minute.", "checking");
     }
     review = { hash, key, ok: r.ok, reasons: r.reasons, at: new Date() };
-    await userRef(uid).set({ review, reviews: { month, count: used + 1 } }, { merge: true });
+    const fresh = u.reviews?.month === month ? {} : { failed: 0 }; // a new month starts both counts at 0
+    await userRef(uid).set({ review, reviews: { month, count: used + 1, ...fresh } }, { merge: true });
   }
   if (!review.ok) {
     await setLaunch(uid, "needs_changes", { reasons: review.reasons });
@@ -590,7 +594,10 @@ async function autoSetup(out) {
       logger.info("set up by itself", { what: name });
     } catch (err) {
       out.errors += 1;
-      await configRef().set({ autoSetupError: `${name}: ${String(err).slice(0, 300)}`, ...(name === "square plans" ? { setupAttempt: FieldValue.increment(1) } : {}) }, { merge: true });
+      // New Square keys only after Square refused (4xx); after a timeout the same keys find the
+      // plans it may already have made, instead of making a second set.
+      const refused = err instanceof ApiError && err.status >= 400 && err.status < 500;
+      await configRef().set({ autoSetupError: `${name}: ${String(err).slice(0, 300)}`, ...(name === "square plans" && refused ? { setupAttempt: FieldValue.increment(1) } : {}) }, { merge: true });
       logger.error("setup failed", { what: name, err: String(err) });
     }
   }
