@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseEvent, isBot, describeUA, language, MAX_SECONDS } from "../track.js";
+import { parseEvent, parseMine, summarize, isBot, describeUA, language, MAX_SECONDS } from "../track.js";
 
 const ok = { event: "load", slug: "mami-king", visitor: "a1b2c3d4e5f6a1b2c3d4e5f6", session: "ffeeddccbbaa99887766" };
 
@@ -97,4 +97,43 @@ test("reads the first Accept-Language tag", () => {
   assert.equal(language("ko"), "ko");
   assert.equal(language("*"), null);
   assert.equal(language(undefined), null);
+});
+
+test("parseMine accepts a visitor id and a true/false choice", () => {
+  assert.deepEqual(parseMine({ visitor: ok.visitor, mine: true, token: "abc" }), { visitor: ok.visitor, mine: true, token: "abc" });
+  assert.equal(parseMine({ visitor: ok.visitor, mine: false }).token, null);
+  for (const b of [null, "x", {}, { visitor: ok.visitor }, { visitor: "short", mine: true }, { visitor: ok.visitor, mine: "yes" }]) {
+    assert.equal(parseMine(b), null);
+  }
+  assert.equal(parseMine({ visitor: ok.visitor, mine: true, token: "x".repeat(5000) }).token, null);
+});
+
+test("summarize rebuilds totals and devices, skipping your own visits", () => {
+  const visits = [
+    { visitor: "aaaaaaaa", startedAt: 100, lastSeenAt: 160, unlocked: true, unlockedAt: 120, seconds: 40, failedTries: 1, device: "iPhone", browser: "Safari", app: null },
+    { visitor: "aaaaaaaa", startedAt: 300, lastSeenAt: 400, unlocked: false, seconds: 0, failedTries: 0, device: "iPhone", browser: "Safari", app: "Instagram" },
+    { visitor: "bbbbbbbb", startedAt: 200, lastSeenAt: 250, unlocked: true, unlockedAt: 210, seconds: 30, failedTries: 0, device: "Mac", browser: "Chrome", app: null },
+    { visitor: "cccccccc", startedAt: 50, lastSeenAt: 900, unlocked: true, unlockedAt: 60, seconds: 99, failedTries: 3, internal: true },
+  ];
+  const { totals, visitors } = summarize(visits);
+  assert.deepEqual(totals, {
+    visits: 3, visitors: 2, opens: 2, failedTries: 1, seconds: 70,
+    firstSeenAt: 100, lastSeenAt: 400, firstOpenedAt: 120, lastOpenedAt: 210,
+  });
+  assert.deepEqual(Object.keys(visitors).sort(), ["aaaaaaaa", "bbbbbbbb"]);
+  assert.deepEqual(visitors.aaaaaaaa, { visits: 2, firstSeenAt: 100, lastSeenAt: 400, device: "iPhone", browser: "Safari", app: "Instagram" });
+});
+
+test("summarize returns null when only your own visits are left", () => {
+  assert.equal(summarize([]), null);
+  assert.equal(summarize([{ visitor: "cccccccc", startedAt: 1, lastSeenAt: 2, internal: true }]), null);
+});
+
+test("summarize works with Firestore-style timestamps", () => {
+  const ts = (n) => ({ toMillis: () => n });
+  const a = ts(5), b = ts(9);
+  const { totals } = summarize([{ visitor: "aaaaaaaa", startedAt: a, lastSeenAt: b, unlocked: false }]);
+  assert.equal(totals.firstSeenAt, a);
+  assert.equal(totals.lastSeenAt, b);
+  assert.equal("firstOpenedAt" in totals, false);
 });

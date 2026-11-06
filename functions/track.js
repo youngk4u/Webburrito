@@ -93,3 +93,56 @@ export function describeUA(ua = "") {
 
   return { device, browser, app };
 }
+
+/** Validates a POST /api/mine body: { visitor, mine, token }. */
+export function parseMine(body) {
+  if (!body || typeof body !== "object") return null;
+  const { visitor, mine, token } = body;
+  if (typeof visitor !== "string" || !ID.test(visitor) || typeof mine !== "boolean") return null;
+  return { visitor, mine, token: typeof token === "string" && token.length <= 4096 ? token : null };
+}
+
+// Firestore Timestamps (and Dates or numbers, for tests) as milliseconds.
+const ms = (t) => (t == null ? null : typeof t.toMillis === "function" ? t.toMillis() : t instanceof Date ? t.getTime() : typeof t === "number" ? t : null);
+const earlier = (a, b) => (ms(b) != null && (ms(a) == null || ms(b) < ms(a)) ? b : a);
+const later = (a, b) => (ms(b) != null && (ms(a) == null || ms(b) > ms(a)) ? b : a);
+
+/**
+ * Rebuilds one preview's totals and its per-device docs from its visit docs, skipping
+ * visits marked as yours. Used after visits are marked (or unmarked) as yours, so the
+ * counts match what record() would have produced if they'd been marked from the start.
+ * Returns { totals, visitors } or null when no countable visits are left.
+ */
+export function summarize(visits) {
+  const totals = { visits: 0, visitors: 0, opens: 0, failedTries: 0, seconds: 0 };
+  let firstSeenAt = null, lastSeenAt = null, firstOpenedAt = null, lastOpenedAt = null;
+  const visitors = {};
+  for (const v of visits) {
+    if (!v || v.internal === true) continue;
+    totals.visits += 1;
+    totals.failedTries += v.failedTries || 0;
+    totals.seconds += v.seconds || 0;
+    if (v.unlocked) {
+      totals.opens += 1;
+      firstOpenedAt = earlier(firstOpenedAt, v.unlockedAt);
+      lastOpenedAt = later(lastOpenedAt, v.unlockedAt);
+    }
+    firstSeenAt = earlier(firstSeenAt, v.startedAt);
+    lastSeenAt = later(lastSeenAt, v.lastSeenAt);
+    if (!v.visitor) continue;
+    const w = visitors[v.visitor];
+    if (!w) {
+      visitors[v.visitor] = { visits: 1, firstSeenAt: v.startedAt ?? null, lastSeenAt: v.lastSeenAt ?? null, device: v.device ?? null, browser: v.browser ?? null, app: v.app ?? null };
+    } else {
+      w.visits += 1;
+      w.firstSeenAt = earlier(w.firstSeenAt, v.startedAt);
+      if (later(w.lastSeenAt, v.lastSeenAt) !== w.lastSeenAt) {
+        Object.assign(w, { lastSeenAt: v.lastSeenAt, device: v.device ?? null, browser: v.browser ?? null, app: v.app ?? null });
+      }
+    }
+  }
+  if (!totals.visits) return null;
+  totals.visitors = Object.keys(visitors).length;
+  for (const [k, t] of Object.entries({ firstSeenAt, lastSeenAt, firstOpenedAt, lastOpenedAt })) if (t != null) totals[k] = t;
+  return { totals, visitors };
+}

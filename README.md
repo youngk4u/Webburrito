@@ -58,11 +58,12 @@ The passcode page on every preview reports to `/api/track` when it's opened. Sig
 
 Tips:
 
-- Signing in to `/admin/` on a phone or computer marks that device as yours. Your own visits from it are shown as "you" and left out of the totals. Sign in once on each device you check previews with.
+- Signing in to `/admin/` on a phone or computer marks that browser as yours, including visits it made before you signed in. Your own visits from it are shown as "you" and left out of the totals. Sign in once on each device you check previews with.
+- Opened a preview on a phone or browser that isn't marked (another browser, the Instagram or Messages in-app browser, a phone you never signed in on)? Click **That was me** on that visit. Every visit from that browser is then shown as "you", taken out of the totals, and its later visits are marked as they happen. **Not me** undoes it.
 - Add `?r=` to a link to tell links apart, e.g. `webburrito.com/mami-king/?r=sms` vs `?r=instagram`.
 - No cookies or IP addresses are stored. Each browser gets a random ID.
 
-Data lives in Firestore: `previews/{slug}` (totals), `visits/{slug}_{session}` (one per visit) and `leads/{id}` (form requests). Only admins can read it. From the browser, the only change anyone can make is an admin marking a request done or new.
+Data lives in Firestore: `previews/{slug}` (totals), `visits/{slug}_{session}` (one per visit), `leads/{id}` (form requests) and `mine/{visitor}` (browsers marked as yours). Only admins can read it. From the browser, the only changes anyone can make are an admin marking a request done or new, and an admin marking a browser as theirs (through `/api/mine`, which checks the sign-in and recounts the totals).
 
 ## One-time setup
 
@@ -93,8 +94,9 @@ These are done for the `web-burrito` project; they're kept here in case the proj
    ```
 
    This publishes the site, the `api` function, and the database rules. If it asks about a cleanup policy for container images, accept the default. The site is now live at `https://web-burrito.web.app`.
-8. **Make yourself an admin.** In *Firestore Database*, click *Start collection* and name it `admins`. Set the **Document ID** to the Google email you'll sign in with, in lowercase, and add any field (for example `name` = your name). Then open `https://web-burrito.web.app/admin/` and sign in. Add teammates the same way.
-9. **Test it.** Open a preview at `https://web-burrito.web.app/<slug>/` on a device that isn't signed in to `/admin/`, and send a test request from the home page form. Watch both appear on the dashboard.
+8. **Let the `api` function write to the database.** Open [IAM](https://console.cloud.google.com/iam-admin/iam) for the project, click *Grant access*, enter `PROJECT_NUMBER-compute@developer.gserviceaccount.com` (the *Default compute service account*; `web-burrito` is `945782518303-compute@developer.gserviceaccount.com`) and give it the **Cloud Datastore User** role. Projects inside a Google Workspace organization don't give that account any roles automatically; without this, `/api/track` and `/api/lead` answer 500 and no visits or requests are saved. It takes a few minutes to start working.
+9. **Make yourself an admin.** In *Firestore Database*, click *Start collection* and name it `admins`. Set the **Document ID** to the Google email you'll sign in with, in lowercase, and add any field (for example `name` = your name). Then open `https://web-burrito.web.app/admin/` and sign in. Add teammates the same way.
+10. **Test it.** Open a preview at `https://web-burrito.web.app/<slug>/` on a device that isn't signed in to `/admin/`, and send a test request from the home page form. Watch both appear on the dashboard.
 
 ### Automatic deploys (replaces GitHub Pages' auto-publish)
 

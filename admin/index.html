@@ -59,6 +59,10 @@ label.check input{width:18px;height:18px;accent-color:var(--salsa)}
 .feed .meta{grid-column:1/-1;color:var(--ink-2);font-size:.9rem}
 .feed .empty{display:block;color:var(--ink-2);padding:1.2rem 1.1rem}
 .feed li.mine{opacity:.6}
+.feed li.mine:focus-within{opacity:1}
+.feed .mark{all:unset;cursor:pointer;margin-left:.6rem;font-weight:800;font-size:.85rem;color:var(--ink);text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;white-space:nowrap}
+.feed .mark:focus-visible{outline:3px solid var(--salsa);outline-offset:2px}
+.feed .mark[disabled]{cursor:default;text-decoration:none;color:var(--ink-2)}
 .row.first{margin:.4rem 0 .9rem}
 .leads .msg{grid-column:1/-1;white-space:pre-wrap;overflow-wrap:anywhere;margin:.25rem 0 .1rem}
 .leads .acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.35rem}
@@ -241,6 +245,21 @@ function visitStatus(v) {
 const ME_KEY = "wb-internal";
 const getMe = () => { try { return localStorage.getItem(ME_KEY); } catch { return null; } };
 const setMe = (on) => { try { localStorage.setItem(ME_KEY, on ? "1" : "0"); } catch {} };
+// This browser's visitor id, the same one the preview gate sends (made here if this browser
+// hasn't opened a preview yet), so the server can recognise this browser as yours.
+const VID_KEY = "wb-vid", SYNC_KEY = "wb-mine-sync";
+function myVid() {
+  try {
+    let v = localStorage.getItem(VID_KEY);
+    if (!v) {
+      v = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+      localStorage.setItem(VID_KEY, v);
+    }
+    return v;
+  } catch {
+    return null;
+  }
+}
 
 // ---------- Firebase ----------
 const local = ["localhost", "127.0.0.1"].includes(location.hostname);
@@ -309,8 +328,62 @@ onAuthStateChanged(auth, async (user) => {
   $("me").checked = getMe() === "1";
   showView("v-dash");
   start();
+  syncDevice();
 });
-$("me").addEventListener("change", (e) => setMe(e.target.checked));
+$("me").addEventListener("change", (e) => { setMe(e.target.checked); syncDevice(); });
+
+// ---------- "That was me" ----------
+// Marks (or unmarks) every visit from one browser as yours, through /api/mine (admins only).
+// The server also remembers that browser, so its later visits are marked as they happen.
+async function postMine(visitor, mine) {
+  const token = await auth.currentUser.getIdToken();
+  const r = await fetch("/api/mine", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visitor, mine, token }),
+  });
+  if (!r.ok) throw new Error(r.status === 403 ? "your account isn't allowed to do that" : `server error ${r.status}`);
+  return r.json();
+}
+// Keeps the server's list in step with "Don't count my own visits from this device".
+async function syncDevice() {
+  const vid = myVid();
+  if (!vid) return;
+  const on = getMe() === "1";
+  const want = `${vid}:${on ? 1 : 0}`;
+  try { if (localStorage.getItem(SYNC_KEY) === want) return; } catch {}
+  try {
+    await postMine(vid, on);
+    try { localStorage.setItem(SYNC_KEY, want); } catch {}
+  } catch {}
+}
+function markButton(v) {
+  if (!v.visitor) return null;
+  const mine = v.internal === true;
+  const label = mine ? "Not me" : "That was me";
+  return h("button", { type: "button", class: "mark", onclick: async (e) => {
+    e.stopPropagation();
+    const b = e.currentTarget;
+    const ask = mine
+      ? "Count visits from this browser again? They go back into the totals."
+      : "Mark this visit as yours? Every visit from the same phone or browser is hidden and left out of the counts, now and from now on.";
+    if (!confirm(ask)) return;
+    b.disabled = true;
+    b.textContent = "Saving…";
+    try {
+      await postMine(v.visitor, !mine);
+      if (v.visitor === myVid()) {
+        setMe(!mine);
+        $("me").checked = !mine;
+        try { localStorage.setItem(SYNC_KEY, `${v.visitor}:${mine ? 0 : 1}`); } catch {}
+      }
+    } catch (err) {
+      b.disabled = false;
+      b.textContent = label;
+      alert(`Couldn't update it (${err.message}).`);
+    }
+  } }, label);
+}
 
 // ---------- dashboard ----------
 let previews = [];
@@ -397,7 +470,7 @@ function renderFeed() {
     h("span", { class: "what" }, h("button", { type: "button", onclick: () => openDetail(v.slug) }, nameOf(v.slug)), visitStatus(v),
       v.internal ? h("span", { class: "pill me" }, "you") : null),
     h("span", { class: "when", title: toDate(v.lastSeenAt) ? fullDate.format(toDate(v.lastSeenAt)) : "" }, ago(v.lastSeenAt)),
-    h("span", { class: "meta", title: v.ua || "" }, visitMeta(v) || "—"),
+    h("span", { class: "meta", title: v.ua || "" }, visitMeta(v) || "—", markButton(v)),
   )));
 }
 $("hide-mine").addEventListener("change", renderFeed);
@@ -444,7 +517,7 @@ function openDetail(slug) {
         h("span", { class: "what" }, toDate(v.startedAt) ? fullDate.format(toDate(v.startedAt)) : "—", visitStatus(v),
           v.internal ? h("span", { class: "pill me" }, "you") : null),
         h("span", { class: "when" }, v.loads > 1 ? `${v.loads} page loads` : ""),
-        h("span", { class: "meta", title: v.ua || "" }, visitMeta(v) || "—"),
+        h("span", { class: "meta", title: v.ua || "" }, visitMeta(v) || "—", markButton(v)),
       )) : [h("li", null, h("span", { class: "empty" }, "No visits yet."))]));
     },
     (e) => $("d-list").replaceChildren(h("li", null, h("span", { class: "empty" }, `Couldn't load visits (${e.code || e.message}).`))),
