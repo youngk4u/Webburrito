@@ -151,11 +151,19 @@ if ! git diff --quiet -- "$ENV_FILE"; then
   else git -c user.name="Web Burrito" -c user.email="hello@webburrito.com" commit -q -m "$MSG" -- "$ENV_FILE"; fi
   echo "  ✓ settings saved"
 fi
-# Push anything not on GitHub yet (also a commit left by an earlier run whose push failed).
-git fetch -q origin main
-if [ -n "$(git rev-list origin/main..HEAD)" ]; then git push -q origin HEAD:main && echo "  ✓ pushed to GitHub"; fi
 (cd functions && npm ci --silent)
 firebase deploy --only functions,hosting,firestore
+# Then GitHub gets the settings too (also a commit left by an earlier run whose push failed), so
+# a later deploy from another copy keeps the platform on. A failed push doesn't undo going live.
+git fetch -q origin main || true
+if [ -n "$(git rev-list origin/main..HEAD)" ]; then
+  if git push -q origin HEAD:main; then echo "  ✓ settings saved on GitHub"
+  else
+    echo "  ! The platform is online, but the settings didn't reach GitHub. Run this here, and sign in to"
+    echo "    GitHub if it asks:  git pull --rebase origin main && git push origin HEAD:main"
+    echo "    Until then, deploy only from this folder."
+  fi
+fi
 
 bold "Done"
 if [ "$REAL" = 0 ]; then
