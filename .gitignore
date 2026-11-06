@@ -8,3 +8,5 @@ __pycache__/
 .firebase/
 *.log
 *.local
+# Google sign-in file the deploy workflow writes (never commit or publish)
+gha-creds-*.json

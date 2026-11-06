@@ -107,17 +107,29 @@ These are done for the `web-burrito` project; they're kept here in case the proj
 
 ### Automatic deploys (replaces GitHub Pages' auto-publish)
 
-Once this is set up, every push to `main` publishes the site (so each day's new previews go live by themselves), and every pull request gets its own preview link, posted as a PR comment. `bash tools/go_live.sh` offers to set it up at the end (once); to set it up on its own, or try again, run `bash tools/go_live.sh --publishing`. (Right after Firebase makes the deploy account, Google can take a minute to finish it, and the first try can stop with "Service account ... does not exist". The script then tries once more.)
+Once this is set up, every push to `main` publishes the site, so each day's new previews go live by themselves. GitHub signs in to Google with **Workload Identity Federation**: Google trusts this repo's `main` branch and lets the deploy workflow act as the deploy account (`github-action-1430418918@web-burrito.iam.gserviceaccount.com`) for a few minutes per run. No key is stored anywhere. That's the only way that works here, because the project's Google organization blocks service account keys (`iam.managed.disableServiceAccountKeyCreation`), so `firebase init hosting:github` stops when it tries to make one.
 
-**One command** (from `~/webburrito-deploy`): `firebase init hosting:github`. Sign in to GitHub when it asks, type `youngk4u/Webburrito` as the repository, and answer **No** to every question about writing or overwriting workflow files and build scripts (the repo already has its workflows). It creates the deploy account and stores its key on GitHub as `FIREBASE_SERVICE_ACCOUNT_WEB_BURRITO`, which the workflows use.
+**One-time setup.** Open [Google Cloud Shell](https://console.cloud.google.com/?cloudshell=true&project=web-burrito), signed in as the project's owner (hello@webburrito.com), paste this and press Enter:
 
-Or by hand:
+```bash
+gcloud config set project web-burrito
+gcloud services enable iamcredentials.googleapis.com sts.googleapis.com
+gcloud iam workload-identity-pools create github --location=global --display-name="GitHub"
+gcloud iam workload-identity-pools providers create-oidc webburrito --location=global --workload-identity-pool=github \
+  --display-name="youngk4u/Webburrito main" --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref" \
+  --attribute-condition="assertion.repository=='youngk4u/Webburrito' && assertion.ref=='refs/heads/main'"
+SA=github-action-1430418918@web-burrito.iam.gserviceaccount.com
+gcloud iam service-accounts describe $SA >/dev/null 2>&1 || gcloud iam service-accounts create github-action-1430418918 --display-name="GitHub deploys"
+gcloud iam service-accounts add-iam-policy-binding $SA --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/945782518303/locations/global/workloadIdentityPools/github/attribute.repository/youngk4u/Webburrito"
+for r in firebasehosting.admin firebase.viewer run.viewer cloudfunctions.viewer serviceusage.apiKeysViewer serviceusage.serviceUsageConsumer; do
+  gcloud projects add-iam-policy-binding web-burrito --member="serviceAccount:$SA" --role="roles/$r" --condition=None --quiet >/dev/null && echo "  role $r ok"
+done
+echo "Done: pushes to main now publish the site."
+```
 
-1. In [Google Cloud console](https://console.cloud.google.com/iam-admin/serviceaccounts) (pick your project), go to *Service accounts → Create service account* and name it `github-deploy`. Give it these roles: **Firebase Hosting Admin**, **Firebase Authentication Admin**, **Cloud Run Viewer**, **API Keys Viewer**.
-2. Open the new account and go to *Keys → Add key → Create new key → JSON*. A file downloads.
-3. On GitHub, go to *youngk4u/Webburrito → Settings → Secrets and variables → Actions → New repository secret*. Name it `FIREBASE_SERVICE_ACCOUNT` and paste the whole file as the value. Then delete the downloaded file.
-
-The workflows skip quietly until the secret exists. When `functions/` or `firestore.rules` change, deploy them by hand:
+The deploy workflow (`.github/workflows/firebase-hosting-merge.yml`) skips with a notice until this is done. Only `main` of this repo can sign in, and the account can only publish the site (Hosting) and read what a deploy needs. Pull-request previews (`firebase-hosting-pull-request.yml`) stay off: they need a key. When `functions/` or `firestore.rules` change, deploy them by hand:
 
 ```bash
 firebase deploy --only functions,firestore

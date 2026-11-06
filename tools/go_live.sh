@@ -3,7 +3,7 @@
 #
 #   bash tools/go_live.sh               first time: test mode (Square sandbox, test cards, no domain bought)
 #   bash tools/go_live.sh --real        later: real payments and real domains
-#   bash tools/go_live.sh --publishing  only (re)do automatic publishing: every push to main goes online
+#   bash tools/go_live.sh --publishing  how to turn on automatic publishing (every push to main goes online)
 #
 # Run it in Terminal from your copy of the repo (~/webburrito-deploy). It asks for each key with
 # hidden typing and stores it in Google Secret Manager. Keys are never shown or written to a file.
@@ -76,37 +76,20 @@ $SETTINGS
 EOF2
 }
 
-# Automatic publishing: firebase init hosting:github makes a deploy account in your project and
-# stores its key on GitHub. Google can take a minute to finish making that account, and the first
-# try then stops with "Service account ... does not exist" (404), so it tries once more.
+# Automatic publishing: GitHub signs in to Google with Workload Identity Federation (no stored key;
+# this project's organization blocks service account keys, so firebase init hosting:github can't
+# finish here). The setup is a few commands in Google Cloud Shell, done once.
 publishing() {
-  local answer
   bold "Automatic publishing (once)"
   cat <<'TXT'
-  So each day's new previews go online by themselves. Firebase asks a few questions and opens
-  GitHub in your browser to connect. Answer:
-    GitHub repository:  youngk4u/Webburrito
-    Run a build script before every deploy?  No
-    Overwrite firebase-hosting-pull-request.yml / firebase-hosting-merge.yml?  No (both)
-    Automatic deployment when a PR is merged?  Yes, branch: main
+  So each day's new previews go online by themselves, GitHub needs permission to publish the site.
+  It's a one-time setup in Google Cloud Shell (it runs in your browser, already signed in):
+    1. Open https://console.cloud.google.com/?cloudshell=true&project=web-burrito
+       (signed in as the account that owns the project, hello@webburrito.com).
+    2. Paste the commands from README.md, "Automatic deploys", and press Enter.
+  After that, every push to main goes online within a few minutes.
 TXT
-  read -r -p "  Set it up now? [Y/n] " answer
-  case "$answer" in n|N|no|No) echo "  Skipped. Later: bash tools/go_live.sh --publishing"; return ;; esac
-  local ok=0
-  if firebase init hosting:github; then ok=1
-  else
-    echo "  Google is still finishing the deploy account. Trying again in a minute (answer the same way)..."
-    sleep "${GO_LIVE_RETRY_WAIT:-60}"
-    firebase init hosting:github && ok=1
-  fi
-  # The repo's own workflow files already do the deploys: keep them as they are.
-  git checkout -q -- .github .firebaserc 2>/dev/null || true
-  if [ "$ok" = 1 ]; then
-    mkdir -p .firebase && touch .firebase/github-deploys
-    echo "  ✓ automatic publishing is on: pushes to main now go online by themselves"
-  else
-    echo "  That didn't finish. Try again later with: bash tools/go_live.sh --publishing"
-  fi
+  mkdir -p .firebase && touch .firebase/github-deploys
 }
 
 if [ "$PUBLISHING_ONLY" = 1 ]; then

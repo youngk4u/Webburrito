@@ -1,6 +1,9 @@
-# Publishes the site to Firebase Hosting (webburrito.com) on every push to main,
-# the way GitHub Pages did. Functions and database rules are deployed by hand
-# (`firebase deploy --only functions,firestore`); see README.
+# Publishes the site to Firebase Hosting (webburrito.com) on every push to main, the way
+# GitHub Pages did. It signs in to Google with Workload Identity Federation: GitHub vouches
+# for this repo and branch, and Google lets it act as the deploy account for a few minutes.
+# No key is stored anywhere (the project's organization blocks service account keys).
+# One-time setup in Google Cloud Shell: README, "Automatic deploys". Until then it skips.
+# Functions and database rules are deployed by hand (`firebase deploy --only functions,firestore`).
 name: Deploy site to Firebase Hosting
 
 on:
@@ -10,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # lets the job prove to Google that it's this repo's main branch
 
 concurrency:
   group: firebase-hosting-live
@@ -18,16 +22,21 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      HAS_SECRET: ${{ (secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_WEB_BURRITO) != '' }}
     steps:
-      - name: Not set up yet
-        if: env.HAS_SECRET != 'true'
-        run: echo "::notice::Skipping deploy - add the FIREBASE_SERVICE_ACCOUNT secret (README, 'Automatic deploys')."
       - uses: actions/checkout@v5
-        if: env.HAS_SECRET == 'true'
-      - uses: FirebaseExtended/action-hosting-deploy@v0
-        if: env.HAS_SECRET == 'true'
+      - id: auth
+        uses: google-github-actions/auth@v3
+        continue-on-error: true
         with:
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_WEB_BURRITO }}
-          channelId: live
+          workload_identity_provider: projects/945782518303/locations/global/workloadIdentityPools/github/providers/webburrito
+          service_account: github-action-1430418918@web-burrito.iam.gserviceaccount.com
+      - name: Not set up yet
+        if: steps.auth.outcome != 'success'
+        run: echo "::notice::Skipping deploy - Google sign-in for GitHub isn't set up yet (README, 'Automatic deploys')."
+      - uses: actions/setup-node@v5
+        if: steps.auth.outcome == 'success'
+        with:
+          node-version: 22
+      - name: Deploy to webburrito.com
+        if: steps.auth.outcome == 'success'
+        run: npx --yes firebase-tools@15.34.1 deploy --only hosting --project web-burrito --non-interactive

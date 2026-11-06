@@ -8,7 +8,7 @@ The site owner wants every push merged into `main` right away.
 
 ## Going live
 `main` is what runs on webburrito.com (Firebase Hosting, project `web-burrito`), but only after a deploy:
-- If the `FIREBASE_SERVICE_ACCOUNT` GitHub secret is set, pushing to `main` deploys the site automatically (`.github/workflows/firebase-hosting-merge.yml`).
+- Once Workload Identity Federation is set up (README, "Automatic deploys"), pushing to `main` deploys the site automatically (`.github/workflows/firebase-hosting-merge.yml`; its run says "Skipping deploy" until then). There's no key: the project's organization blocks service account keys.
 - If it isn't, tell the owner to run `firebase deploy --only hosting` from their copy of the repo.
 - Changes to `functions/` or `firestore.rules` always need `firebase deploy --only functions,firestore`.
 

@@ -16,7 +16,8 @@
       "**/*.tmp",
       "**/Icon?",
       "README.md",
-      "CLAUDE.md"
+      "CLAUDE.md",
+      "gha-creds-*.json"
     ],
     "rewrites": [
       { "source": "/api/app/**", "function": { "functionId": "app", "region": "us-central1" } },
