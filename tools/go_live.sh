@@ -177,7 +177,7 @@ TXT
 else
   cat <<'TXT'
   Real payments are on. The real Square plans set themselves up within a few minutes.
-  From now on a paid sign-up buys a real domain (at cost on your Cloudflare card, about $10.46 a year
+  From now on a paid sign-up buys a real domain (at cost on your Cloudflare card, about $11 a year
   for a .com). Do one real purchase yourself, check the site goes live, then refund it in Square:
   the site goes offline by itself.
 TXT

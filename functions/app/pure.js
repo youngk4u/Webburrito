@@ -10,8 +10,8 @@ export const PLANS = {
   loaded: { name: "The Loaded", monthly: 6900, yearly: 69900, emails: 10, editsPerMonth: 100 },
 };
 export const BILLING = ["monthly", "yearly"];
-// Endings that cost under $15 a year at cost on Cloudflare (Nov 2026: .com $10.46, .us $6.50,
-// .org $11.20 renewal, .net $11.86). .co, .shop and .biz cost $18-30, so they're left out.
+// Endings that cost under $15 a year at cost on Cloudflare (.com $10.46, about $11.17 from November 2026;
+// .us $6.50, .org $11.20 renewal, .net $11.86). .co, .shop and .biz cost $18-30, so they're left out.
 export const ALLOWED_TLDS = ["com", "net", "org", "us"];
 
 /** Trimmed text without control characters, cut to `max`. Non-strings become "". */
