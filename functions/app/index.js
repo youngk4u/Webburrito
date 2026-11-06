@@ -42,9 +42,10 @@ import {
   pageFits, monthKey, dayKey, pageHash, parseForwards, registrarPhone, riskyDomain, shortHash,
 } from "./pure.js";
 import { square, cf, idem, ApiError } from "./clients.js";
-import { buildSite } from "./ai.js";
+import { buildSite, polishClaim, PREVIEW_WORDING } from "./ai.js";
+import { livePreview, fillProfile, nameFromSlug } from "./site.js";
 import {
-  advance, publishDraft, takeOffline, restore, setupHosting, withLease, markPaid, queue, tick, reconcileCheckout,
+  advance, publishDraft, takeOffline, restore, setupHosting, setupSquarePlans, withLease, markPaid, queue, tick, reconcileCheckout,
   adoptSubscription, resetCheckout, userRef, draftRef, configRef, currentPlan, isPaid, Step, PAID_STATUSES, ENDED_STATUSES,
   domainIndex,
 } from "./launch.js";
@@ -78,7 +79,11 @@ export const app = PLATFORM_ON ? onRequest(
     res.set("Cache-Control", "no-store");
     const path = req.path.replace(/^\/api\/app(?=\/)/, "");
     try {
-      if (path === "/config" && req.method === "GET") return res.json(await publicConfig());
+      if (path === "/config" && req.method === "GET") {
+        // Read by every home page and preview visit: cached at the edge so it rarely wakes this function.
+        res.set("Cache-Control", "public, max-age=60, s-maxage=300");
+        return res.json(await publicConfig());
+      }
       if (path === "/square-webhook") return await squareWebhook(req, res);
       if (req.method !== "POST") return res.set("Allow", "POST").status(405).json({ ok: false });
       const body = readJson(req, 20_000);
@@ -199,11 +204,23 @@ const ROUTES = {
     const passcode = text(body.passcode, 40);
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new UserError(400, "That preview link doesn't look right.");
     if (!passcode) throw new UserError(400, "Type the passcode.");
-    const html = await openPreview(slug, passcode);
-    await saveDraft(user.uid, html, "preview");
-    await userRef(user.uid).set({ claimedSlug: slug }, { merge: true });
-    await log(user.uid, "builder", `Started from your preview (webburrito.com/${slug}).`);
-    res.json({ ok: true });
+    const raw = await openPreview(slug, passcode);
+    // Becomes the live version: no concept banner, no noindex, forms -> call/text box...
+    const { html: cleaned, facts } = livePreview(raw);
+    // ...then one careful pass for wording that only made sense on the preview (a few cents),
+    // done once per preview: claiming the same one again reuses it.
+    const { html, polished } = await polishOnce(user.uid, slug, cleaned);
+    const { hash } = await saveDraft(user.uid, html, "preview");
+    const u = await getUser(user.uid);
+    const profile = parseProfile(fillProfile(u.profile, facts, nameFromSlug(slug)));
+    // This exact page is Web Burrito's work: its check allows the review quotes from public listings.
+    // It's still checked before going live (preview leftovers, the domain, everything else).
+    await userRef(user.uid).set({
+      claimedSlug: slug, profile, trustedHashes: FieldValue.arrayUnion(hash),
+      claim: { slug, polished, at: FieldValue.serverTimestamp() },
+    }, { merge: true });
+    await log(user.uid, "builder", `Your site from webburrito.com/${slug} is ready. Check your hours, phone and address, and ask here for any changes.`);
+    res.json({ ok: true, profile });
   },
 
   async "/build"(user, body, res) {
@@ -224,8 +241,8 @@ const ROUTES = {
       });
       res.json({ ok: true, left: reserve.left });
     } catch (err) {
-      // Give the try back only when Claude refused the request outright (nothing was spent).
-      if (err instanceof ApiError && err.status >= 400) await refundBuild(user.uid, reserve);
+      // Give the try back when Claude refused the request outright, or when nothing was made.
+      if ((err instanceof ApiError && err.status >= 400) || err.refund) await refundBuild(user.uid, reserve);
       const msg = err instanceof ApiError ? "The builder is busy right now. Try again in a minute." : err.message;
       await log(user.uid, "builder", `That didn't work: ${msg}`, { failed: true });
       logger.error("build failed", { uid: user.uid, err: String(err) });
@@ -247,7 +264,7 @@ const ROUTES = {
   async "/domain-check"(user, body, res) {
     await rateLimit(user.uid, "domain", 40, 3600);
     const domain = parseDomain(body.domain);
-    if (!domain) throw new UserError(400, "Type a name like rosasbakery.com (one word, ending in .com, .net, .org, .us, .co, .shop or .biz).");
+    if (!domain) throw new UserError(400, "Type a name like rosasbakery.com (one word, ending in .com, .net, .org or .us).");
     if (riskyDomain(domain)) return res.json({ ok: true, domain, available: false, why: "not allowed", suggestions: [] });
     const taken = (await domainIndex(domain).get()).data();
     if (taken && taken.uid !== user.uid) return res.json({ ok: true, domain, available: false, why: "taken", suggestions: [] });
@@ -569,7 +586,47 @@ async function saveDraft(uid, html, source, previous) {
   if (!pageFits(clean)) throw new UserError(413, "That page is too big. Ask for a simpler page.");
   const prev = previous === undefined ? (await draftRef(uid).get()).data() : previous;
   if (prev?.html) await userRef(uid).collection("site").doc("previous").set(prev);
-  await draftRef(uid).set({ html: clean, hash: pageHash(clean), source, updatedAt: FieldValue.serverTimestamp(), version: FieldValue.increment(1) }, { merge: true });
+  const hash = pageHash(clean);
+  await draftRef(uid).set({ html: clean, hash, source, updatedAt: FieldValue.serverTimestamp(), version: FieldValue.increment(1) }, { merge: true });
+  return { hash };
+}
+
+/**
+ * The polish pass for a claimed preview, cached per preview (and its content), with a cap per
+ * account and a shared daily cap. Returns { html, polished }; on any problem the page as cleaned.
+ */
+async function polishOnce(uid, slug, cleaned) {
+  const ref = db.collection("polishCache").doc(slug);
+  const key = shortHash(cleaned);
+  const cached = (await ref.get()).data();
+  if (cached?.key === key && cached.html) return { html: cached.html, polished: true };
+  try {
+    await rateLimit(uid, "polish", 5, 86400);
+  } catch {
+    return { html: cleaned, polished: false };
+  }
+  if (!(await reserveDaily("polish", 300))) return { html: cleaned, polished: false };
+  try {
+    const html = await polishClaim(cleaned);
+    if (!html) return { html: cleaned, polished: false };
+    if (PREVIEW_WORDING.test(html.replace(/<style[\s\S]*?<\/style>/gi, ""))) logger.warn("preview wording left after polish", { slug });
+    await ref.set({ key, html, at: FieldValue.serverTimestamp() });
+    return { html, polished: true };
+  } catch (err) {
+    logger.warn("claim polish skipped", { uid, slug, err: String(err) });
+    return { html: cleaned, polished: false };
+  }
+}
+
+/** A shared daily allowance (cost guard): true if there's room left today, and counts one. */
+async function reserveDaily(key, max) {
+  const ref = db.collection("usage").doc(dayKey());
+  return db.runTransaction(async (tx) => {
+    const n = (await tx.get(ref)).get(key) || 0;
+    if (n >= max) return false;
+    tx.set(ref, { [key]: FieldValue.increment(1) }, { merge: true });
+    return true;
+  });
 }
 
 // Free tries before paying, then a monthly allowance by plan. Counted before the build runs,
@@ -807,28 +864,7 @@ async function endForMoney(uid, why) {
 // ---------- admin ----------
 const ADMIN = {
   async "/admin/setup-square"(user, body, res) {
-    const cfg = (await configRef().get()).data() || {};
-    if (cfg.plans?.[env()]) return res.json({ ok: true, plans: cfg.plans[env()], note: "Already set up." });
-    const planObjects = Object.entries(PLANS).map(([key, p]) => ({
-      type: "SUBSCRIPTION_PLAN", id: `#plan_${key}`, subscription_plan_data: { name: `Web Burrito site: ${p.name}` },
-    }));
-    const made = await square("POST", "/v2/catalog/batch-upsert", { idempotency_key: idem("plans"), batches: [{ objects: planObjects }] });
-    const planId = Object.fromEntries((made.id_mappings || []).map((m) => [m.client_object_id, m.object_id]));
-    const variations = Object.entries(PLANS).flatMap(([key, p]) => BILLING.map((b) => ({
-      type: "SUBSCRIPTION_PLAN_VARIATION",
-      id: `#${key}_${b}`,
-      subscription_plan_variation_data: {
-        name: `${p.name}, ${b}`,
-        subscription_plan_id: planId[`#plan_${key}`],
-        phases: [{ cadence: b === "monthly" ? "MONTHLY" : "ANNUAL", ordinal: 0, pricing: { type: "STATIC", price_money: { amount: p[b], currency: "USD" } } }],
-      },
-    })));
-    const made2 = await square("POST", "/v2/catalog/batch-upsert", { idempotency_key: idem("vars"), batches: [{ objects: variations }] });
-    const varId = Object.fromEntries((made2.id_mappings || []).map((m) => [m.client_object_id, m.object_id]));
-    const plans = Object.fromEntries(Object.keys(PLANS).map((k) => [k, { monthly: varId[`#${k}_monthly`], yearly: varId[`#${k}_yearly`] }]));
-    if (Object.values(plans).some((p) => !p.monthly || !p.yearly)) throw new Error("Square didn't return all plan ids");
-    await configRef().set({ plans: { [env()]: plans }, plansAt: FieldValue.serverTimestamp() }, { merge: true });
-    res.json({ ok: true, plans });
+    res.json({ ok: true, ...(await setupSquarePlans()) });
   },
 
   async "/admin/setup-hosting"(user, body, res) {

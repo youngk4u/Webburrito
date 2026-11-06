@@ -10,7 +10,9 @@ export const PLANS = {
   loaded: { name: "The Loaded", monthly: 6900, yearly: 69900, emails: 10, editsPerMonth: 100 },
 };
 export const BILLING = ["monthly", "yearly"];
-export const ALLOWED_TLDS = ["com", "net", "org", "us", "co", "shop", "biz"];
+// Endings that cost under $15 a year at cost on Cloudflare (Nov 2026: .com $10.46, .us $6.50,
+// .org $11.20 renewal, .net $11.86). .co, .shop and .biz cost $18-30, so they're left out.
+export const ALLOWED_TLDS = ["com", "net", "org", "us"];
 
 /** Trimmed text without control characters, cut to `max`. Non-strings become "". */
 export function text(v, max) {
@@ -122,6 +124,14 @@ export function cleanHtml(out) {
 }
 
 /** Pages must fit in one Firestore document (1 MiB) with room to spare. */
+/** A whole page given as HTML (from a tool or an edit): must be a full document that fits. */
+export function asPage(html) {
+  if (typeof html !== "string") return null;
+  let s = html.trim();
+  if (!/<html[\s>]/i.test(s) || !/<\/html>\s*$/i.test(s)) return null;
+  if (!/^<!doctype/i.test(s)) s = "<!doctype html>\n" + s;
+  return pageFits(s) ? s : null;
+}
 export const MAX_PAGE_CHARS = 300_000;
 export const pageFits = (s) => typeof s === "string" && s.length <= MAX_PAGE_CHARS && Buffer.byteLength(s, "utf8") <= 900_000;
 

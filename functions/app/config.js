@@ -48,7 +48,7 @@ export const REVIEW_MODEL = defineString("REVIEW_MODEL", { default: "claude-sonn
 
 // Free AI builds before paying, per account, and a daily cap across everyone (cost guard).
 export const FREE_BUILDS = defineInt("FREE_BUILDS", { default: 3 });
-export const FREE_BUILDS_PER_DAY_TOTAL = defineInt("FREE_BUILDS_PER_DAY_TOTAL", { default: 150 });
+export const FREE_BUILDS_PER_DAY_TOTAL = defineInt("FREE_BUILDS_PER_DAY_TOTAL", { default: 100 });
 // Most a domain may cost to register (USD). Premium domains are always refused.
 export const MAX_DOMAIN_PRICE = defineInt("MAX_DOMAIN_PRICE", { default: 15 });
 // Most domains bought automatically per day (a guard against stolen cards). Past this, a

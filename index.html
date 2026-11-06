@@ -681,6 +681,21 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
     document.querySelectorAll('[data-href-once]').forEach(function(el){el.href=el.getAttribute('data-href-'+mode);});
   }
   once.addEventListener('click',function(){set('once')}); mon.addEventListener('click',function(){set('monthly')});
+  // Once sign-ups are open with real payments (webburrito.com/app/), ordering happens there:
+  // the plan buttons go straight to it, and the top of the page gets a "Build it now" button.
+  fetch('/api/app/config').then(function(r){return r.ok?r.json():null;}).then(function(c){
+    if(!c||c.testMode||!c.ready||!c.ready.payments||!c.ready.hosting||!c.ready.domains)return;
+    [['Regular','regular'],['Super','super'],['Loaded','loaded']].forEach(function(p){
+      var a=[].filter.call(document.querySelectorAll('a.btn'),function(x){return x.textContent.trim()==='Order the '+p[0];})[0];
+      if(!a)return;
+      a.setAttribute('data-href-once','/app/?plan='+p[1]+'&billing=yearly');
+      a.setAttribute('data-href-monthly','/app/?plan='+p[1]+'&billing=monthly');
+      a.href=a.getAttribute(mon.getAttribute('aria-pressed')==='true'?'data-href-monthly':'data-href-once');
+      a.removeAttribute('target');a.removeAttribute('rel');
+    });
+    var hero=document.querySelector('a.btn.btn-red[href="#contact"]');
+    if(hero){var b=document.createElement('a');b.className='btn btn-white';b.href='/app/';b.textContent='Build it now';hero.parentNode.insertBefore(b,hero.nextSibling);}
+  }).catch(function(){});
   document.querySelectorAll('.copy').forEach(function(b){
     b.addEventListener('click',function(){
       var t=b.getAttribute('data-copy'), orig=b.textContent;

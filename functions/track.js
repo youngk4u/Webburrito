@@ -1,6 +1,7 @@
 // Pure helpers for /api/track (no Firebase imports, so they're easy to unit test).
 
-export const EVENTS = new Set(["load", "fail", "unlock", "time"]);
+// "claim": they tapped "Make it mine" on the preview (the strongest buying signal).
+export const EVENTS = new Set(["load", "fail", "unlock", "time", "claim"]);
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ID = /^[A-Za-z0-9_-]{8,40}$/;
@@ -114,8 +115,8 @@ const later = (a, b) => (ms(b) != null && (ms(a) == null || ms(b) > ms(a)) ? b :
  * Returns { totals, visitors } or null when no countable visits are left.
  */
 export function summarize(visits) {
-  const totals = { visits: 0, visitors: 0, opens: 0, failedTries: 0, seconds: 0 };
-  let firstSeenAt = null, lastSeenAt = null, firstOpenedAt = null, lastOpenedAt = null;
+  const totals = { visits: 0, visitors: 0, opens: 0, failedTries: 0, seconds: 0, claims: 0 };
+  let firstSeenAt = null, lastSeenAt = null, firstOpenedAt = null, lastOpenedAt = null, lastClaimAt = null;
   const visitors = {};
   for (const v of visits) {
     if (!v || v.internal === true) continue;
@@ -126,6 +127,10 @@ export function summarize(visits) {
       totals.opens += 1;
       firstOpenedAt = earlier(firstOpenedAt, v.unlockedAt);
       lastOpenedAt = later(lastOpenedAt, v.unlockedAt);
+    }
+    if (v.claimed) {
+      totals.claims += 1;
+      lastClaimAt = later(lastClaimAt, v.claimedAt);
     }
     firstSeenAt = earlier(firstSeenAt, v.startedAt);
     lastSeenAt = later(lastSeenAt, v.lastSeenAt);
@@ -143,6 +148,6 @@ export function summarize(visits) {
   }
   if (!totals.visits) return null;
   totals.visitors = Object.keys(visitors).length;
-  for (const [k, t] of Object.entries({ firstSeenAt, lastSeenAt, firstOpenedAt, lastOpenedAt })) if (t != null) totals[k] = t;
+  for (const [k, t] of Object.entries({ firstSeenAt, lastSeenAt, firstOpenedAt, lastOpenedAt, lastClaimAt })) if (t != null) totals[k] = t;
   return { totals, visitors };
 }

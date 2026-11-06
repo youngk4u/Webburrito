@@ -265,6 +265,14 @@ async function record(e, meta) {
           if (!preview?.firstOpenedAt) p.firstOpenedAt = now;
         }
         break;
+      case "claim":
+        if (!visit?.claimed) {
+          v.claimed = true;
+          v.claimedAt = now;
+          p.claims = inc(1);
+          p.lastClaimAt = now;
+        }
+        break;
       case "time": {
         const before = visit?.seconds || 0;
         if (e.seconds > before) {

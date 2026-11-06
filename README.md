@@ -133,11 +133,12 @@ The domain's DNS is at **Cloudflare**. `webburrito.com` is the main address and 
 
 Customers sign up at **webburrito.com/app/** and do everything themselves:
 
-1. Sign in with Google or an emailed link.
-2. Fill in their business details.
-3. Start from the Web Burrito preview we sent them (link + passcode), or have the AI build a new site. They see it right away and ask for changes in plain words ("make the header red"). **3 free tries** before paying; after that, a monthly allowance by plan (20 / 40 / 100 changes).
-4. Pick a plan, a domain and pay by card (Square). After the first payment clears, the server **buys the domain in their name** (Cloudflare Registrar), **checks the site with AI** (made-up claims, brand copying, phishing, broken pages) and **puts it online** with HTTPS. Usually under a minute.
-5. Later: ask for changes and click *Publish* (checked again first), set up email forwarding addresses (The Super: 3, The Loaded: 10), change card, cancel.
+1. **From their preview:** once sign-ups are open, every preview's banner gets a **Make it mine** button. It takes the owner to `/app/` with that preview; after signing in (Google or an emailed link) it's claimed by itself, no link or passcode to type. The preview is made ready to go live on the spot: concept banner and `noindex` removed, the order form becomes a "Call or text us" box, buttons that needed scripts are taken out, and one quick AI pass removes sentences that only made sense on a preview ("On the live site…", "Stand-in photos"). Their name, phone and address are read off the page.
+2. **Or from scratch:** fill in the business details and have the AI build a site. **3 free tries** before paying; after that, a monthly allowance by plan (20 / 40 / 100 changes). Changes come back as quick find-and-replace edits: a few seconds and a few cents each.
+3. **Pay:** pick a plan; their name as a .com is suggested and checked, and the domain owner's details are filled in from the business address. After the first payment clears, the server **buys the domain in their name** (Cloudflare Registrar), **checks the site with AI** (made-up claims, brand copying, phishing, broken pages; a claimed preview skips this, since Web Burrito made it) and **puts it online** with HTTPS. Usually under a minute.
+4. **Later:** ask for changes and click *Publish* (checked again first), set up email forwarding addresses (The Super: 3, The Loaded: 10), change card, cancel, or **download their site** (one HTML file; no lock-in). Every live site is indexable, has one canonical address, a sitemap, and the business's name, phone and address in schema.org form for Google.
+
+Taps on *Make it mine* show up on `/admin/` with the visit ("tapped Make it mine"), so you can see who's about to buy.
 
 Square webhooks record payments, failed payments, cancellations, refunds and chargebacks; a job (`launcher`) runs every minute to carry launches forward (a step that fails is retried with growing gaps, up to an hour apart), settle unclear checkouts and take sites offline 14 days after a failed payment. A full refund or a chargeback on the plan's own payment cancels the plan and takes the site down; one on some other payment of the same Square customer is only flagged. Canceling a paid-up plan keeps the site up until the end of the paid period; canceling an unpaid one (first payment pending, or a payment failed) ends it right away and voids the unpaid invoice. A domain bought for a customer stays theirs: nobody else can pick it, and if they come back later their new plan uses it again without buying it twice. Customers and their launch status are listed on `/admin/` under *Customers*, with *Retry launch*, *Take offline* and *Put back online*, plus warnings to look at: a domain whose auto-renew didn't turn on, a partial refund, a refund or dispute on another payment, a payment that came in after a plan ended (refund it in Square), and Square subscriptions on Web Burrito plans that no account claimed.
 
@@ -151,30 +152,53 @@ How it's built:
 | API (`/api/app/*`) | `functions/app/` (function `app`) |
 | AI prompts (build + check) | `functions/app/ai.js` (verified stock photos in `photos.json`) |
 | Launch steps: payment → domain → check → live | `functions/app/launch.js` |
+| Preview → live clean-up, quick edits, search-engine data | `functions/app/site.js` |
+| One-command go-live | `tools/go_live.sh` |
 | Server for customer sites (Cloudflare Worker + KV) | `functions/app/sites-worker.js`, uploaded by *Set up site hosting* |
 | Settings (not secret) | `functions/.env` |
 | Terms and privacy pages | `tools/legal_*.html` → `python3 tools/build_pages.py` |
 
 **Test mode.** Until `SQUARE_ENVIRONMENT=production`, payments use Square's sandbox (test cards, no real money) and **no domain is bought** (Cloudflare has no test mode), so you can try the whole flow for free. The last step then says where the site *would* be live. In test mode only admins and the emails in `TEST_EMAILS` (in `functions/.env`) can pay; everyone else sees "Sign-ups open soon". Test-mode plans don't carry over when you switch to real payments.
 
-### Going live with the platform (do these in order)
+### Going live with the platform
 
-Keys go into Google Secret Manager with `firebase functions:secrets:set NAME` (it asks you to paste the value; nobody else sees it).
+**One command** from your copy of the repo (`~/webburrito-deploy`):
 
-1. **Claude.** At [console.anthropic.com](https://console.anthropic.com), add billing, create an API key, then `firebase functions:secrets:set ANTHROPIC_API_KEY`. Set a monthly spend limit there too. Each build or change costs about $0.25–$1.
+```bash
+bash tools/go_live.sh          # test mode: Square sandbox, test cards, no domain bought
+bash tools/go_live.sh --real   # later: real payments and real domains
+```
+
+It walks you through the four accounts (Claude, Square, Cloudflare, Firebase email links), asks for each key with hidden typing (straight into Google Secret Manager, never into a file), fills in the IDs, turns the platform on, commits and deploys. Square plans and site hosting then **set themselves up** within a few minutes (the every-minute job does it; the buttons on `/admin/` still work). Then try `/app/` with the test card, read the terms (step 9 below) and link the home page (step 10).
+
+What the script does, step by step, if you'd rather do it by hand (keys go into Google Secret Manager with `firebase functions:secrets:set NAME`):
+
+1. **Claude.** At [console.anthropic.com](https://console.anthropic.com), add billing, create an API key, then `firebase functions:secrets:set ANTHROPIC_API_KEY`. Set a monthly spend limit there too (see *What it costs to run*).
 2. **Square (sandbox first).** At [developer.squareup.com](https://developer.squareup.com), create an application called Web Burrito. On *Credentials* (Sandbox): put the **Application ID** in `functions/.env` as `SQUARE_APPLICATION_ID`, and `firebase functions:secrets:set SQUARE_ACCESS_TOKEN` with the **Access token**. In *Locations* (sandbox), copy the location ID into `SQUARE_LOCATION_ID`. In *Webhooks → Subscriptions*, add `https://webburrito.com/api/app/square-webhook` with the events `invoice.payment_made`, `invoice.scheduled_charge_failed`, `subscription.created`, `subscription.updated`, `refund.created`, `refund.updated` and `dispute.created`, then `firebase functions:secrets:set SQUARE_WEBHOOK_SIGNATURE_KEY` with its **Signature key**.
 3. **Cloudflare.** Add a payment method (*Billing*), set a default registrant contact (*Domain Registration → Manage → Default contact*), and accept the domain registration agreement. Put the **Account ID** in `functions/.env` as `CLOUDFLARE_ACCOUNT_ID`. Create an API token (*My Profile → API Tokens → Create custom token*) with: Account → *Registrar: Domains Edit*, *Workers Scripts Edit*, *Workers KV Storage Edit*, *Email Routing Addresses Edit*; Zone (all zones) → *Zone Edit* (to add the zone for a new domain if registration doesn't), *DNS Edit*, *Workers Routes Edit*, *Email Routing Rules Edit*. Then `firebase functions:secrets:set CLOUDFLARE_API_TOKEN`.
 4. **Email sign-in links.** Firebase console → *Authentication → Sign-in method → Email/Password* → turn on *Email link (passwordless sign-in)*.
 5. **Turn it on and deploy.** In `functions/.env`, change `PLATFORM=off` to `PLATFORM=on` (until then the platform isn't deployed at all, so deploys don't ask for the keys, and `/app/` says "Coming soon"). Then, from a clean copy of the repo: `cd functions && npm ci && cd ..`, then `firebase deploy --only functions,hosting,firestore`. This also creates the every-minute `launcher` job (Cloud Scheduler); if the deploy says a permission is missing for it, grant the role it names to the *Default compute service account* the same way as step 8 of *One-time setup*.
-6. On `/admin/`, under *Customers*: click **Create Square plans**, then **Set up site hosting**. The line above them says when sign-ups are open.
+6. Nothing to click: within a few minutes the platform creates the Square plans and uploads the site server by itself. `/admin/` → *Customers* shows when sign-ups are open (the **Create Square plans** and **Set up site hosting** buttons do the same thing right away).
 7. **Try it** at `/app/` with Square's test card `4111 1111 1111 1111` (any future date, any CVV, ZIP 94103).
-8. **Real payments:** switch the Square app to *Production* credentials (new Application ID, access token, location ID `LAET0GFY9RXSR`, and a production webhook with its own signature key), set `SQUARE_ENVIRONMENT=production`, deploy again, and click **Create Square plans** once more (production has its own plans). From now on, a paid sign-up buys a real domain, charged to your Cloudflare card at Cloudflare's at-cost price (around $10–11 a year for a .com).
+8. **Real payments:** switch the Square app to *Production* credentials (new Application ID, access token, location ID `LAET0GFY9RXSR`, and a production webhook with its own signature key), set `SQUARE_ENVIRONMENT=production` and deploy again; the production plans set themselves up (or click **Create Square plans**). From now on, a paid sign-up buys a real domain, charged to your Cloudflare card at Cloudflare's at-cost price (around $10–11 a year for a .com).
 9. **Read the [terms](/terms/) and [privacy policy](/privacy/)** and change anything that doesn't match how you run the business. They're a plain-language draft, not legal advice.
 10. **Link it:** point the home page's sign-up buttons to `/app/` when you're happy.
 
 Before real customers, do one real purchase yourself (your own card, a cheap .com) to confirm the Cloudflare beta registration, the zone and the domain attach work end to end, then refund it in Square; the site goes offline automatically.
 
-Limits worth knowing: the Cloudflare Registrar API is in beta (it can register, but renewals stay on auto-renew in the dashboard, which the platform turns on for each domain). Only `.com .net .org .us .co .shop .biz` domains under $15 are bought automatically; premium domains are refused. US addresses only for now. Email addresses forward mail (they don't send). Live customer sites don't run JavaScript (it's blocked on purpose), so interactive bits from previews become plain HTML when the AI edits them. Changing the card doesn't pay an invoice that already failed: the customer pays it from the email Square sends (the page tells them so), and the site comes back as soon as it's paid. `LAUNCH_RETRY_SECONDS` in `functions/.env` sets how often waiting launches are looked at again (60 seconds).
+### What it costs to run
+
+| What | Cost to you |
+| --- | --- |
+| Customer sites (Cloudflare Workers + KV, free plan) | $0 up to 100,000 visits a day across all sites; then $5 a month for 10 million |
+| Domains (Cloudflare Registrar, sold at cost) | .com $10.46 a year (about $11.17 for renewals after Nov 2026), .us $6.50; bought only after the first payment |
+| AI (Claude Sonnet 5.5) | about 11¢ for a new site, about 3¢ per change (quick edits), about 2¢ per site check; a claimed preview: about 3¢ once, no check. Free tries are capped at 100 a day across everyone |
+| App, admin, database, functions (Firebase) | inside the free allowances at this size |
+| Square | its card fee on each payment; no monthly fee |
+
+A Regular customer at $20 a month costs about $1 (domain) + a few cents of AI + Square's fee, so most of it is margin. Compared with the builders owners know: Wix Light is $17 a month on a yearly plan ($24 monthly) with the domain free only the first year (then about $21), Squarespace Basic $19 ($25 monthly), Durable $22 ($25 monthly), and all of them are do-it-yourself. Web Burrito is $199 a year or $20 a month with the .com included every year, built for them, changes by asking, and the site is theirs to download.
+
+Limits worth knowing: the Cloudflare Registrar API is in beta (it can register, but renewals stay on auto-renew in the dashboard, which the platform turns on for each domain). Only `.com .net .org .us` domains under $15 are bought automatically (Cloudflare sells at cost: a .com is $10.46 a year); premium domains are refused. US addresses only for now. Email addresses forward mail (they don't send). Live customer sites don't run JavaScript (it's blocked on purpose), so interactive bits from previews become plain HTML when the AI edits them. Changing the card doesn't pay an invoice that already failed: the customer pays it from the email Square sends (the page tells them so), and the site comes back as soon as it's paid. `LAUNCH_RETRY_SECONDS` in `functions/.env` sets how often waiting launches are looked at again (60 seconds).
 
 ## Local development
 

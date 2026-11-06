@@ -33,7 +33,7 @@ async function call(service, url, init, timeoutMs) {
 }
 
 // ---------- Claude ----------
-export async function claude({ model, system, messages, maxTokens = 16000, timeoutMs = 280_000 }) {
+export async function claude({ model, system, messages, maxTokens = 16000, timeoutMs = 280_000, tools, toolChoice }) {
   const r = await call("anthropic", `${ANTHROPIC_BASE_URL.value()}/v1/messages`, {
     method: "POST",
     headers: {
@@ -41,11 +41,13 @@ export async function claude({ model, system, messages, maxTokens = 16000, timeo
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ model, system, messages, max_tokens: maxTokens }),
+    body: JSON.stringify({ model, system, messages, max_tokens: maxTokens, ...(tools ? { tools, tool_choice: toolChoice || { type: "auto" } } : {}) }),
   }, timeoutMs);
   if (!r.ok) throw new ApiError("anthropic", r.status, r.body?.error?.message || "request failed");
-  const textOut = (r.body?.content || []).filter((c) => c.type === "text").map((c) => c.text).join("");
-  return { text: textOut, stop: r.body?.stop_reason, usage: r.body?.usage || {} };
+  const content = r.body?.content || [];
+  const textOut = content.filter((c) => c.type === "text").map((c) => c.text).join("");
+  const toolUses = content.filter((c) => c.type === "tool_use").map((c) => ({ name: c.name, input: c.input || {} }));
+  return { text: textOut, tools: toolUses, stop: r.body?.stop_reason, usage: r.body?.usage || {} };
 }
 
 // ---------- Square ----------

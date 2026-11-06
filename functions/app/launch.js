@@ -17,7 +17,8 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { cf, square, ApiError } from "./clients.js";
 import { reviewSite } from "./ai.js";
-import { domainBuyable, registrantFor, pageHash, sanitizeHtml, pageFits, monthKey, dayKey, PLANS } from "./pure.js";
+import { domainBuyable, registrantFor, pageHash, sanitizeHtml, pageFits, monthKey, dayKey, PLANS, BILLING } from "./pure.js";
+import { servedPage } from "./site.js";
 import {
   MAX_DOMAIN_PRICE, MAX_DOMAINS_PER_DAY, SITES_WORKER_NAME, SQUARE_LOCATION_ID, SQUARE_ENVIRONMENT, CLOUDFLARE_ACCOUNT_ID,
   PAST_DUE_GRACE_DAYS, LAUNCH_RETRY_SECONDS, isLive,
@@ -305,7 +306,13 @@ export async function publishDraft(uid) {
   const html = sanitizeHtml(draft.html);
   if (!pageFits(html) || html.length > 150_000) throw new Step("The page is too big to publish. Ask for a simpler page, or undo the last change.", "needs_changes");
   const hash = pageHash(html);
-  let review = u.review?.hash === hash ? u.review : null;
+  // The check covers the page and the business details shown to Google with it (name, phone,
+  // address): change either and it's checked again.
+  const p = u.profile || {};
+  const key = pageHash(`${hash}|${p.business || ""}|${p.phone || ""}|${p.address || ""}|${p.city || ""}|${u.domain?.name || ""}`);
+  let review = u.review?.key === key ? u.review : null;
+  // The exact page Web Burrito made from a preview: review quotes from its listings are allowed.
+  const madeByWebBurrito = (u.trustedHashes || []).includes(hash);
   if (!review) {
     // Each check counts toward the plan's monthly allowance (with some room for re-checks).
     const month = monthKey();
@@ -313,15 +320,15 @@ export async function publishDraft(uid) {
     const used = u.reviews?.month === month ? u.reviews.count || 0 : 0;
     if (used >= limit) throw new Step(`You've used this month's site checks. Text (310) 279-8278 for more.`, "needs_changes");
     await setLaunch(uid, "checking");
-    const r = await reviewSite({ profile: u.profile || {}, html, domain: u.domain?.name || "" });
+    const r = await reviewSite({ profile: u.profile || {}, html, domain: u.domain?.name || "", madeByWebBurrito });
     if (r.transient) {
       // The checker's answer couldn't be read. Try a few more times, then ask Web Burrito.
-      const tries = (u.reviewRetry?.hash === hash ? u.reviewRetry.n || 0 : 0) + 1;
-      await userRef(uid).set({ reviewRetry: { hash, n: tries } }, { merge: true });
+      const tries = (u.reviewRetry?.hash === key ? u.reviewRetry.n || 0 : 0) + 1;
+      await userRef(uid).set({ reviewRetry: { hash: key, n: tries } }, { merge: true });
       if (tries >= 5) throw new Step("The site check isn't finishing. Web Burrito has been told and will look at it.", "needs_attention");
       throw new Step("The site check didn't finish. It will try again in a minute.", "checking");
     }
-    review = { hash, ok: r.ok, reasons: r.reasons, at: new Date() };
+    review = { hash, key, ok: r.ok, reasons: r.reasons, at: new Date() };
     await userRef(uid).set({ review, reviews: { month, count: used + 1 } }, { merge: true });
   }
   if (!review.ok) {
@@ -331,7 +338,8 @@ export async function publishDraft(uid) {
   await setLaunch(uid, "publishing");
   u = (await userRef(uid).get()).data() || {};
   if (u.live?.suspended || !isPaid(u)) throw new Step(OFFLINE_WHY[u.live?.suspended] || "Your plan isn't active.", "suspended");
-  await kvPut(u.domain.name, { state: "live", html, business: u.profile?.business || "", at: Date.now() });
+  const served = servedPage(html, p, `https://${u.domain.name}/`); // the details that were checked
+  await kvPut(u.domain.name, { state: "live", html: served, business: u.profile?.business || "", at: Date.now() });
   // If it was taken offline (or the plan ended) while we were publishing, put the offline page back.
   const after = (await userRef(uid).get()).data() || {};
   if (after.live?.suspended || !isPaid(after)) {
@@ -526,6 +534,12 @@ export async function tick({ budgetMs = 420_000 } = {}) {
       }
     }
   };
+  try {
+    await autoSetup(out);
+  } catch (err) {
+    out.errors += 1;
+    logger.error("auto setup failed", { err: String(err) }); // never stops the launches below
+  }
   const due = await db().collection("users").where("launch.nextAt", "<=", new Date()).orderBy("launch.nextAt").limit(25).get();
   await each(due.docs, async (d) => {
     if (ms(d.get("lease.until")) > Date.now()) return;
@@ -548,7 +562,70 @@ export async function tick({ budgetMs = 420_000 } = {}) {
   return out;
 }
 
-// ---------- one-time hosting setup (admin) ----------
+// ---------- one-time setup (runs by itself from the launcher; also buttons on /admin/) ----------
+const WORKER_SOURCE = readFileSync(new URL("./sites-worker.js", import.meta.url), "utf8");
+const WORKER_HASH = pageHash(WORKER_SOURCE);
+
+/**
+ * Creates or finishes the one-time setup that's missing (Square plans for this environment, the
+ * sites Worker), and re-uploads the Worker when its code changed. At most one run every 10
+ * minutes, claimed in a transaction so two runs never overlap.
+ */
+async function autoSetup(out) {
+  const cfg = (await configRef().get()).data() || {};
+  const needPlans = !cfg.plans?.[env()];
+  const needHosting = Boolean(CLOUDFLARE_ACCOUNT_ID.value()) && (!cfg.workerReady || cfg.workerHash !== WORKER_HASH);
+  if (!needPlans && !needHosting) return;
+  const mine = await db().runTransaction(async (tx) => {
+    const now = (await tx.get(configRef())).data() || {};
+    if (Date.now() - ms(now.autoSetupAt) < 10 * 60e3) return false;
+    tx.set(configRef(), { autoSetupAt: new Date() }, { merge: true });
+    return true;
+  });
+  if (!mine) return;
+  for (const [need, run, name] of [[needPlans, setupSquarePlans, "square plans"], [needHosting, setupHosting, "site hosting"]]) {
+    if (!need) continue;
+    try {
+      await run();
+      logger.info("set up by itself", { what: name });
+    } catch (err) {
+      out.errors += 1;
+      await configRef().set({ autoSetupError: `${name}: ${String(err).slice(0, 300)}`, ...(name === "square plans" ? { setupAttempt: FieldValue.increment(1) } : {}) }, { merge: true });
+      logger.error("setup failed", { what: name, err: String(err) });
+    }
+  }
+}
+
+/** The six Square plan variations (3 plans x monthly/yearly) for the current environment. */
+export async function setupSquarePlans() {
+  const cfg = (await configRef().get()).data() || {};
+  if (cfg.plans?.[env()]) return { plans: cfg.plans[env()], note: "Already set up." };
+  // Fixed keys per environment and attempt: a retry after a lost answer gets the same objects back
+  // (no duplicates); after a real failure the next attempt uses new keys.
+  const attempt = cfg.setupAttempt || 0;
+  const planObjects = Object.entries(PLANS).map(([key, p]) => ({
+    type: "SUBSCRIPTION_PLAN", id: `#plan_${key}`, subscription_plan_data: { name: `Web Burrito site: ${p.name}` },
+  }));
+  const made = await square("POST", "/v2/catalog/batch-upsert", { idempotency_key: `wb-plans-${env()}-${attempt}`, batches: [{ objects: planObjects }] });
+  const planId = Object.fromEntries((made.id_mappings || []).map((m) => [m.client_object_id, m.object_id]));
+  const variations = Object.entries(PLANS).flatMap(([key, p]) => BILLING.map((b) => ({
+    type: "SUBSCRIPTION_PLAN_VARIATION",
+    id: `#${key}_${b}`,
+    subscription_plan_variation_data: {
+      name: `${p.name}, ${b}`,
+      subscription_plan_id: planId[`#plan_${key}`],
+      phases: [{ cadence: b === "monthly" ? "MONTHLY" : "ANNUAL", ordinal: 0, pricing: { type: "STATIC", price_money: { amount: p[b], currency: "USD" } } }],
+    },
+  })));
+  const made2 = await square("POST", "/v2/catalog/batch-upsert", { idempotency_key: `wb-vars-${env()}-${attempt}`, batches: [{ objects: variations }] });
+  const varId = Object.fromEntries((made2.id_mappings || []).map((m) => [m.client_object_id, m.object_id]));
+  const plans = Object.fromEntries(Object.keys(PLANS).map((k) => [k, { monthly: varId[`#${k}_monthly`], yearly: varId[`#${k}_yearly`] }]));
+  if (Object.values(plans).some((p) => !p.monthly || !p.yearly)) throw new Error("Square didn't return all plan ids");
+  await configRef().set({ plans: { [env()]: plans }, plansAt: FieldValue.serverTimestamp(), autoSetupError: null }, { merge: true });
+  return { plans };
+}
+
+// ---------- one-time hosting setup ----------
 export async function setupHosting() {
   const cfg = configRef();
   let ns = (await cfg.get()).get("kvNamespaceId");
@@ -558,7 +635,7 @@ export async function setupHosting() {
     if (!ns) ns = (await cf("POST", "/accounts/{account}/storage/kv/namespaces", { title: "webburrito-sites" })).body?.result?.id;
     if (!ns) throw new Error("Couldn't create the KV namespace");
   }
-  const source = readFileSync(new URL("./sites-worker.js", import.meta.url), "utf8");
+  const source = WORKER_SOURCE;
   const form = new FormData();
   form.append("metadata", new Blob([JSON.stringify({
     main_module: "worker.js",
@@ -567,6 +644,6 @@ export async function setupHosting() {
   })], { type: "application/json" }));
   form.append("worker.js", new Blob([source], { type: "application/javascript+module" }), "worker.js");
   await cf("PUT", `/accounts/{account}/workers/scripts/${SITES_WORKER_NAME.value()}`, form, { raw: true, timeoutMs: 60_000 });
-  await cfg.set({ kvNamespaceId: ns, workerReady: true, workerUploadedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await cfg.set({ kvNamespaceId: ns, workerReady: true, workerHash: WORKER_HASH, workerUploadedAt: FieldValue.serverTimestamp(), autoSetupError: null }, { merge: true });
   return { kvNamespaceId: ns };
 }

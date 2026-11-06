@@ -112,13 +112,13 @@ test("summarize rebuilds totals and devices, skipping your own visits", () => {
   const visits = [
     { visitor: "aaaaaaaa", startedAt: 100, lastSeenAt: 160, unlocked: true, unlockedAt: 120, seconds: 40, failedTries: 1, device: "iPhone", browser: "Safari", app: null },
     { visitor: "aaaaaaaa", startedAt: 300, lastSeenAt: 400, unlocked: false, seconds: 0, failedTries: 0, device: "iPhone", browser: "Safari", app: "Instagram" },
-    { visitor: "bbbbbbbb", startedAt: 200, lastSeenAt: 250, unlocked: true, unlockedAt: 210, seconds: 30, failedTries: 0, device: "Mac", browser: "Chrome", app: null },
+    { visitor: "bbbbbbbb", startedAt: 200, lastSeenAt: 250, unlocked: true, unlockedAt: 210, seconds: 30, failedTries: 0, device: "Mac", browser: "Chrome", app: null, claimed: true, claimedAt: 240 },
     { visitor: "cccccccc", startedAt: 50, lastSeenAt: 900, unlocked: true, unlockedAt: 60, seconds: 99, failedTries: 3, internal: true },
   ];
   const { totals, visitors } = summarize(visits);
   assert.deepEqual(totals, {
-    visits: 3, visitors: 2, opens: 2, failedTries: 1, seconds: 70,
-    firstSeenAt: 100, lastSeenAt: 400, firstOpenedAt: 120, lastOpenedAt: 210,
+    visits: 3, visitors: 2, opens: 2, failedTries: 1, seconds: 70, claims: 1,
+    firstSeenAt: 100, lastSeenAt: 400, firstOpenedAt: 120, lastOpenedAt: 210, lastClaimAt: 240,
   });
   assert.deepEqual(Object.keys(visitors).sort(), ["aaaaaaaa", "bbbbbbbb"]);
   assert.deepEqual(visitors.aaaaaaaa, { visits: 2, firstSeenAt: 100, lastSeenAt: 400, device: "iPhone", browser: "Safari", app: "Instagram" });

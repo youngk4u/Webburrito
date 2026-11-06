@@ -111,6 +111,7 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
 .timeline li.bad .icon{background:var(--salsa);border-color:var(--salsa);color:#fff}
 .live-link{font-size:1.25rem;font-weight:800;overflow-wrap:anywhere}
 .reasons{margin:.3rem 0 0;padding-left:1.2rem}
+.tips{margin:0;padding-left:1.15rem;display:grid;gap:.45rem}
 .pill{display:inline-block;font-size:.78rem;font-weight:800;border-radius:999px;padding:.05rem .55rem;border:1.5px solid currentColor}
 .forward{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1.4fr) auto;gap:.5rem;align-items:center}
 @media (max-width:560px){.forward{grid-template-columns:1fr auto}}
@@ -128,8 +129,8 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
   <section id="v-loading" class="center"><p class="muted">Loading…</p></section>
 
   <section id="v-signin" class="center card" hidden>
-    <h1>Your website</h1>
-    <p>Build it with us, see it right away, and put it online on your own .com.</p>
+    <h1 id="signin-title">Your website</h1>
+    <p id="signin-lead">Build it with us, see it right away, and put it online on your own .com.</p>
     <button id="google" type="button">Continue with Google</button>
     <p class="muted small">or get a sign-in link by email</p>
     <form id="email-form" class="stack" style="width:100%">
@@ -157,6 +158,7 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
     <section class="section" id="s-profile">
       <div class="head"><span class="step">1</span><h2>Your business</h2><span class="done-mark" id="profile-done" hidden>Saved</span>
         <button class="link" type="button" id="profile-edit" hidden>Edit</button></div>
+      <p class="muted small" id="profile-summary" hidden></p>
       <form id="profile-form" class="card stack" hidden>
         <div class="grid2">
           <label>Business name<input name="business" required maxlength="120" autocomplete="organization"></label>
@@ -185,6 +187,7 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
           <label>Preview link<input id="claim-link" placeholder="webburrito.com/your-shop" required></label>
           <label>Passcode<input id="claim-code" inputmode="numeric" autocomplete="off" required></label>
           <div><button type="submit" id="claim-go">Use this design</button></div>
+          <p class="muted small" id="claim-note" role="status"></p>
           <p class="err" id="claim-err" role="alert"></p>
         </form>
         <form id="new-form" class="card stack">
@@ -210,7 +213,7 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
         <div class="card chat">
           <h3>Ask for changes</h3>
           <ol class="msgs" id="msgs" aria-live="polite"></ol>
-          <div class="working" id="working" hidden><span class="dot"></span><span>Working on it. This takes about a minute.</span></div>
+          <div class="working" id="working" hidden><span class="dot"></span><span>Working on it. Small changes take a few seconds; a new design about a minute.</span></div>
           <form id="ask-form" class="stack">
             <textarea id="ask" aria-label="What should change?" maxlength="2000" placeholder="Make the header red. Add our Sunday hours. Put the menu first."></textarea>
             <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
@@ -232,10 +235,10 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
           <h3>Pick a plan</h3>
           <div class="billing" role="radiogroup" aria-label="Billing">
             <label><input type="radio" name="billing" value="monthly" checked> Monthly</label>
-            <label><input type="radio" name="billing" value="yearly"> Yearly (save more)</label>
+            <label><input type="radio" name="billing" value="yearly"> Yearly (about 2 months free)</label>
           </div>
           <div class="plans" id="plans" role="radiogroup" aria-label="Plan"></div>
-          <p class="muted small">Every plan: your site, your own .com in your name, hosting, and changes by asking here. Cancel any time.</p>
+          <p class="muted small">Every plan: your site, your own .com in your name every year (not just the first), hosting, and changes by asking here. No contract, cancel any time, and your site is yours to download.</p>
         </div>
 
         <div class="card stack">
@@ -314,6 +317,16 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
             <div><button type="button" id="card2-save">Save card</button></div>
           </div>
           <p class="err" id="plan-err" role="alert"></p>
+        </div>
+        <div class="card stack" id="found-box" hidden>
+          <h3>Get found</h3>
+          <ul class="tips">
+            <li>Add <b class="site-name"></b> to your <a href="https://business.google.com/" target="_blank" rel="noopener">Google Business Profile</a> (Edit profile → Contact → Website). It's the biggest thing you can do to show up on Google Maps.</li>
+            <li>Put it in your Instagram and Facebook bio, and on your receipts and business cards.</li>
+            <li>Your site already tells Google your name, phone and address in the format it reads.</li>
+          </ul>
+          <div><button type="button" class="ghost" id="download">Download your site</button></div>
+          <p class="muted small">It's yours: one HTML file you can keep or host anywhere.</p>
         </div>
         <div class="card stack" id="email-box" hidden>
           <h3>Business email</h3>
@@ -423,7 +436,9 @@ $("email-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = $("email").value.trim();
   try {
-    await fa.sendSignInLinkToEmail(auth, email, { url: `${location.origin}/app/`, handleCodeInApp: true });
+    // Keep ?claim= and ?plan= so the link brings them back to the same place.
+    const keepQ = new URLSearchParams([...new URLSearchParams(location.search)].filter(([k]) => ["claim", "plan", "billing"].includes(k))).toString();
+    await fa.sendSignInLinkToEmail(auth, email, { url: `${location.origin}/app/${keepQ ? `?${keepQ}` : ""}`, handleCodeInApp: true });
     try { localStorage.setItem("wb-signin-email", email); } catch {}
     $("sent-to").textContent = email;
     show("v-sent");
@@ -439,7 +454,8 @@ if (fa.isSignInWithEmailLink(auth, location.href)) {
   if (email) {
     try {
       await fa.signInWithEmailLink(auth, email, location.href);
-      history.replaceState(null, "", "/app/");
+      const keepQ = new URLSearchParams([...new URLSearchParams(location.search)].filter(([k]) => ["claim", "plan", "billing"].includes(k))).toString();
+      history.replaceState(null, "", `/app/${keepQ ? `?${keepQ}` : ""}`);
     } catch (err) {
       $("signin-err").textContent = "That sign-in link has expired or was already used. Ask for a new one.";
     }
@@ -447,16 +463,44 @@ if (fa.isSignInWithEmailLink(auth, location.href)) {
 }
 $("out").addEventListener("click", () => fa.signOut(auth));
 
+// ---------- claiming a preview from its page (webburrito.com/<slug> -> "Make it mine") ----------
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// From the URL; or, coming back through an emailed sign-in link opened elsewhere, from this browser.
+const claimSlug = (() => {
+  const s = new URLSearchParams(location.search).get("claim") || "";
+  if (SLUG.test(s)) return s;
+  try {
+    const p = JSON.parse(localStorage.getItem("wb-claim") || "null");
+    if (/[?&]mode=signIn\b/.test(location.search) && p && SLUG.test(p.slug) && Date.now() - p.at < 86400e3) return p.slug;
+  } catch {}
+  return null;
+})();
+const titleCase = (slug) => slug.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+function pendingCode(slug) {
+  try {
+    const p = JSON.parse(localStorage.getItem("wb-claim") || "null");
+    if (p?.slug === slug && Date.now() - p.at < 86400e3 && p.code) return String(p.code);
+  } catch {}
+  try { return sessionStorage.getItem("wb-preview-code"); } catch { return null; }
+}
+const forgetClaim = () => { try { localStorage.removeItem("wb-claim"); } catch {} };
+if (claimSlug) {
+  $("signin-title").textContent = "Make it yours";
+  $("signin-lead").textContent = `Sign in to put ${titleCase(claimSlug)}'s website online on your own .com. Takes about 5 minutes.`;
+}
+
 // ---------- state ----------
 let me = null; // users/{uid}
 let canBuyNow = true;
 let draft = null;
+let draftLoaded = false; // the draft snapshot has arrived (even if there's no draft)
 let stops = [];
 let working = false;
 
 fa.onAuthStateChanged(auth, (user) => {
   stops.forEach((f) => f());
   stops = [];
+  me = null; draft = null; draftLoaded = false; // never act on the previous account's data
   $("out").hidden = !user;
   $("who").textContent = user?.email || "";
   if (!user) return show("v-signin");
@@ -464,11 +508,29 @@ fa.onAuthStateChanged(auth, (user) => {
   const ref = fs.doc(db, "users", user.uid);
   stops.push(
     fs.onSnapshot(ref, (s) => { me = s.data() || {}; render(); }, () => {}),
-    fs.onSnapshot(fs.doc(db, "users", user.uid, "site", "draft"), (s) => { draft = s.data() || null; renderSite(); render(); }, () => {}),
+    fs.onSnapshot(fs.doc(db, "users", user.uid, "site", "draft"), (s) => { draft = s.data() || null; draftLoaded = true; renderSite(); render(); }, () => {}),
     fs.onSnapshot(fs.query(fs.collection(db, "users", user.uid, "messages"), fs.orderBy("at", "asc"), fs.limitToLast(60)), (s) => renderMsgs(s.docs.map((d) => d.data())), () => {}),
   );
-  api("/status").then((r) => { canBuyNow = r.canBuy !== false; render(); }).catch(() => {}); // makes the account, moves a waiting launch forward
+  api("/status").then((r) => { canBuyNow = r.canBuy !== false; render(); }).catch(() => {}) // makes the account, moves a waiting launch forward
+    .then(() => autoClaim(user.uid));
 });
+
+// Came from a preview's "Make it mine": open it once, right after sign-in.
+let autoClaimed = false;
+async function autoClaim(uid) {
+  if (!claimSlug || autoClaimed) return;
+  autoClaimed = true;
+  // Wait for the account and the draft, so a draft they already changed is never replaced.
+  for (let i = 0; i < 60 && !(me && draftLoaded); i++) await new Promise((r) => setTimeout(r, 150));
+  if (!(me && draftLoaded)) { autoClaimed = false; return; }
+  if (me?.claimedSlug === claimSlug && draft?.html) { forgetClaim(); return; } // already theirs: keep their changes
+  $("claim-link").value = `webburrito.com/${claimSlug}`;
+  const code = pendingCode(claimSlug);
+  if (!code) { render(); $("claim-code").focus(); return; }
+  $("claim-code").value = code;
+  await claim(claimSlug, code);
+  if (auth.currentUser?.uid === uid) history.replaceState(null, "", "/app/");
+}
 
 // ---------- 1. business ----------
 const PF = ["business", "type", "city", "phone", "address", "email", "hours", "services", "about"];
@@ -562,27 +624,66 @@ $("undo").addEventListener("click", async () => {
   try { await api("/undo"); } catch (err) { $("ask-err").textContent = err.message; }
 });
 
-// Start from a Web Burrito preview: the server opens it with the passcode.
+// Start from a Web Burrito preview: the server opens it with the passcode and gets it ready to go live.
+async function claim(slug, passcode) {
+  $("claim-err").textContent = "";
+  $("claim-note").textContent = "Getting your site ready to go live. About 20 seconds…";
+  busy($("claim-go"), true, "Getting it ready…");
+  try {
+    await api("/claim", { slug, passcode });
+    forgetClaim();
+    return true;
+  } catch (err) {
+    if (err.data && err.data.ok === false) forgetClaim(); // a real answer (like a wrong passcode): don't keep the code
+    $("claim-err").textContent = err.message;
+    return false;
+  } finally {
+    $("claim-note").textContent = "";
+    busy($("claim-go"), false, "Getting it ready…");
+  }
+}
 $("claim-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  $("claim-err").textContent = "";
   const slug = ($("claim-link").value.trim().toLowerCase().match(/(?:webburrito\.com\/)?([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/) || [])[1];
   if (!slug) return ($("claim-err").textContent = "Paste the link we sent you, like webburrito.com/your-shop.");
-  busy($("claim-go"), true, "Opening…");
-  try {
-    await api("/claim", { slug, passcode: $("claim-code").value.trim() });
-  } catch (err) {
-    $("claim-err").textContent = err.message;
-  } finally {
-    busy($("claim-go"), false, "Opening…");
-  }
+  await claim(slug, $("claim-code").value.trim());
 });
 
 // ---------- 3. go live ----------
+// "1060 SW 4th St, Moore, OK 73160" -> parts, for the domain owner form.
+function usAddress(s, business = "") {
+  let t = String(s || "").replace(/\s+/g, " ").trim().replace(/,?\s*(USA|United States)$/i, "");
+  if (business && t.toLowerCase().startsWith(business.toLowerCase() + ",")) t = t.slice(business.length + 1).trim();
+  const m = /^(.+?),\s*([^,]+?),\s*([A-Za-z]{2})\.?\s+(\d{5})(?:-\d{4})?$/.exec(t);
+  return m ? { street: m[1], city: m[2], state: m[3].toUpperCase(), zip: m[4] } : null;
+}
+const domainFor = (name) => {
+  const b = String(name || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, "and").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "");
+  return b && b.length <= 50 ? `${b}.com` : "";
+};
+let prefilled = false;
+function prefillCheckout() {
+  if (prefilled || !me?.profile) return;
+  prefilled = true;
+  const f = $("buy-form"), p = me.profile, a = usAddress(p.address, p.business) || {};
+  const [first, ...rest] = String(auth.currentUser?.displayName || "").trim().split(/\s+/);
+  const set = (name, v) => { if (v && !f.elements[name].value) f.elements[name].value = v; };
+  set("first", first); set("last", rest.join(" "));
+  set("cemail", auth.currentUser?.email); set("cphone", p.phone);
+  set("street", a.street); set("ccity", a.city || p.city); set("state", a.state); set("zip", a.zip);
+  // Suggest their name as a .com and check it right away.
+  if (!$("domain").value && domainFor(p.business)) { $("domain").value = domainFor(p.business); checkDomain(); }
+}
 let plan = "regular";
 let payments = null, card = null, card2 = null;
 let checkoutId = rid();
 let domainOk = null;
+// Came from a plan button on the home page: /app/?plan=super&billing=yearly
+(() => {
+  const q = new URLSearchParams(location.search);
+  if (["regular", "super", "loaded"].includes(q.get("plan"))) plan = q.get("plan");
+  if (q.get("billing") === "yearly") document.querySelector('input[name="billing"][value="yearly"]').checked = true;
+})();
 
 function billing() { return document.querySelector('input[name="billing"]:checked').value; }
 function renderPlans() {
@@ -593,7 +694,10 @@ function renderPlans() {
   },
   h("b", null, p.name),
   h("span", { class: "price" }, billing() === "monthly" ? `${money(p.monthly)}/mo` : `${money(p.yearly)}/yr`),
-  h("span", { class: "muted small" }, p.emails ? `${p.emails} business email addresses` : "Site, domain and hosting"),
+  h("span", { class: "muted small" }, billing() === "monthly"
+    ? `or ${money(p.yearly)}/yr and save ${money(p.monthly * 12 - p.yearly)}`
+    : `about ${money(Math.round(p.yearly / 12))}/mo, saves ${money(p.monthly * 12 - p.yearly)}`),
+  h("span", { class: "muted small" }, p.emails ? `Site, .com, hosting + ${p.emails} business email addresses` : "Site, .com and hosting"),
   )));
   const p = cfg.plans[plan];
   $("total").textContent = billing() === "monthly" ? `${money(p.monthly)}, then monthly` : `${money(p.yearly)}, then yearly`;
@@ -754,6 +858,16 @@ $("publish").addEventListener("click", async () => {
     render(); // back to "nothing to publish" once the live site matches
   }
 });
+$("download").addEventListener("click", async () => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  const live = (await fs.getDoc(fs.doc(db, "users", uid, "site", "live")).catch(() => null))?.data();
+  const html = live?.html || draft?.html;
+  if (!html) return;
+  // A download, never a page opened on webburrito.com.
+  const a = h("a", { href: URL.createObjectURL(new Blob([html], { type: "application/octet-stream" })), download: `${me.domain?.name || "my-site"}.html` });
+  document.body.append(a); a.click(); a.remove();
+});
 $("cancel").addEventListener("click", async () => {
   const ask = me.plan?.status === "active"
     ? "Cancel your plan? Your site stays up until the end of the period you've paid for, then goes offline."
@@ -809,7 +923,11 @@ function render() {
   $("profile-done").hidden = editing;
   $("profile-edit").hidden = editing;
   if (editing) fillProfile();
-  $("s-site").hidden = !hasProfile;
+  const p0 = me.profile || {};
+  $("profile-summary").hidden = editing || !hasProfile;
+  $("profile-summary").textContent = [p0.business, p0.phone, p0.address || p0.city].filter(Boolean).join(" · ");
+  // Someone who came from their preview can start from it before typing anything.
+  $("s-site").hidden = !hasProfile && !(claimSlug && !draft?.html);
 
   const paid = Boolean(me.plan?.paid && me.plan?.env === cfg?.square?.environment && ["active", "past_due", "canceling"].includes(me.plan?.status));
   const free = cfg?.freeBuilds ?? 3;
@@ -831,10 +949,7 @@ function render() {
   if (!started && open && hasSite) {
     renderPlans();
     mountCard();
-    const f = $("buy-form");
-    if (!f.elements.cemail.value) f.elements.cemail.value = auth.currentUser?.email || "";
-    if (!f.elements.cphone.value) f.elements.cphone.value = me.profile?.phone || "";
-    if (!f.elements.ccity.value) f.elements.ccity.value = me.profile?.city || "";
+    prefillCheckout();
   }
   if (started) renderProgress();
   const settled = ["live", "needs_changes", "needs_domain", "needs_attention", "payment_failed", "suspended", "no_plan"].includes(me.launch?.state);
@@ -858,6 +973,8 @@ function render() {
     $("publish-note").textContent = me.live?.suspended ? "Your site is offline right now, so changes can't be published."
       : changed ? "You have changes that aren't live yet." : "Your live site matches the preview. Ask for changes above, then publish them here.";
     $("email-box").hidden = !p?.emails || failedFirst;
+    $("found-box").hidden = failedFirst || me.live?.state !== "live";
+    document.querySelectorAll(".site-name").forEach((el) => (el.textContent = me.domain?.name || "your site"));
     if (p?.emails && !failedFirst) renderForwards();
   }
 }

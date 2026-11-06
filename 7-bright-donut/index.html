@@ -102,19 +102,35 @@ button:disabled{opacity:.6;cursor:wait}
       .then(function(buf){return new TextDecoder().decode(buf);});
   }
   // document.open() drops event listeners, so watch() starts after the site is written.
-  function show(html){track('unlock');document.open();document.write(html);document.close();window.scrollTo(0,0);watch();}
+  function show(html,code){track('unlock');document.open();document.write(html);document.close();window.scrollTo(0,0);watch();offer(code);}
+  // Once sign-ups are open (webburrito.com/app/), the banner takes the owner straight to it.
+  function offer(code){
+    fetch('/api/app/config').then(function(r){return r.ok?r.json():null;}).then(function(c){
+      if(!c||!c.apiBase||!c.ready||!c.ready.payments||!c.ready.hosting||!c.ready.domains)return;
+      // In test mode (Square sandbox) only your own devices see it, for trying the flow.
+      if(c.testMode&&keep('localStorage','wb-internal')!=='1')return;
+      var bar=document.querySelector('.wb-concept,.dj-concept');if(!bar)return;
+      var note=bar.lastElementChild;
+      if(note&&/not live yet/i.test(note.textContent))note.textContent=note.textContent.replace(/not live yet.*$/i,'Not live yet: put it online on your own .com today.');
+      var a=document.createElement('a');
+      a.href='/app/?claim='+encodeURIComponent(slug);a.textContent='Make it mine';
+      a.setAttribute('style','display:inline-block;margin-left:.7rem;padding:.3rem 1rem;border-radius:999px;background:#FFD23F;color:#141210;font-weight:800;text-decoration:none;white-space:nowrap');
+      a.addEventListener('click',function(){try{localStorage.setItem('wb-claim',JSON.stringify({slug:slug,code:code,at:Date.now()}));}catch(e){}track('claim');});
+      bar.appendChild(a);
+    }).catch(function(){});
+  }
   var f=document.getElementById('f'), input=document.getElementById('code'), go=document.getElementById('go'), err=document.getElementById('err');
   track('load');
   if(!window.crypto||!crypto.subtle){err.textContent='Please open this link in Safari or Chrome.';go.disabled=true;return;}
   var saved=null; try{saved=sessionStorage.getItem('wb-preview-code');}catch(e){}
-  if(saved){unlock(saved).then(show,function(){try{sessionStorage.removeItem('wb-preview-code');}catch(e){}});}
+  if(saved){unlock(saved).then(function(html){show(html,saved);},function(){try{sessionStorage.removeItem('wb-preview-code');}catch(e){}});}
   f.addEventListener('submit',function(e){
     e.preventDefault();
     var code=input.value.trim(); if(!code){input.focus();return;}
     go.disabled=true; go.textContent='Opening…'; err.textContent='';
     unlock(code).then(function(html){
       try{sessionStorage.setItem('wb-preview-code',code);}catch(e){}
-      show(html);
+      show(html,code);
     },function(e){
       var old=e&&e.message==='nods';
       if(!old)track('fail');

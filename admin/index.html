@@ -252,6 +252,7 @@ function visitMeta(v) {
   ].filter(Boolean).join(" · ");
 }
 function visitStatus(v) {
+  if (v.claimed) return h("span", { class: "pill ok" }, "tapped Make it mine");
   if (v.unlocked) return h("span", { class: "pill ok" }, "opened");
   if (v.failedTries) return h("span", { class: "pill bad" }, `wrong passcode ×${v.failedTries}`);
   return h("span", { class: "pill" }, "saw passcode screen");
@@ -620,6 +621,7 @@ function openDetail(slug) {
   $("d-link").href = `/${slug}/`;
   $("d-sum").textContent = [
     `Opened ${p.opens || 0}×`,
+    p.claims ? `tapped Make it mine ${p.claims}×` : null,
     `${p.visitors || 0} device${p.visitors === 1 ? "" : "s"}`,
     p.firstOpenedAt ? `first opened ${fullDate.format(toDate(p.firstOpenedAt))}` : "never opened",
   ].join(" · ");
