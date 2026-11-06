@@ -129,9 +129,48 @@ The domain's DNS is at **Cloudflare**. `webburrito.com` is the main address and 
 5. In *Authentication → Settings → Authorized domains*, add `webburrito.com` and `www.webburrito.com` so admin sign-in works there.
 6. In *GitHub → Settings → Pages*, turn GitHub Pages off. (`CNAME` and `.nojekyll` have already been removed.)
 
-## Customer accounts (next)
+## Customer platform (`/app/`)
 
-`firestore.rules` already has a place for customer records: `users/{uid}`, plus anything under it such as invoices or change requests. A signed-in customer can read only their own record. Only admins and Cloud Functions can write to it, so customers can't change their own plan. The customer login page is the next thing to build.
+Customers sign up at **webburrito.com/app/** and do everything themselves:
+
+1. Sign in with Google or an emailed link.
+2. Fill in their business details.
+3. Start from the Web Burrito preview we sent them (link + passcode), or have the AI build a new site. They see it right away and ask for changes in plain words ("make the header red"). **3 free tries** before paying; after that, a monthly allowance by plan (20 / 40 / 100 changes).
+4. Pick a plan, a domain and pay by card (Square). After the first payment clears, the server **buys the domain in their name** (Cloudflare Registrar), **checks the site with AI** (made-up claims, brand copying, phishing, broken pages) and **puts it online** with HTTPS. Usually under a minute.
+5. Later: ask for changes and click *Publish* (checked again first), set up email forwarding addresses (The Super: 3, The Loaded: 10), change card, cancel.
+
+Failed payments and cancellations are handled by Square webhooks: a site goes offline when a plan ends, or 14 days after a failed payment (checked whenever you open `/admin/`). Customers and their launch status are listed on `/admin/` under *Customers*, with *Retry launch* and *Take offline*.
+
+How it's built:
+
+| Piece | Where |
+| --- | --- |
+| Customer page | `app/index.html` |
+| API (`/api/app/*`) | `functions/app/` (function `app`) |
+| AI prompts (build + check) | `functions/app/ai.js` (verified stock photos in `photos.json`) |
+| Launch steps: payment → domain → check → live | `functions/app/launch.js` |
+| Server for customer sites (Cloudflare Worker + KV) | `functions/app/sites-worker.js`, uploaded by *Set up site hosting* |
+| Settings (not secret) | `functions/.env` |
+| Terms and privacy pages | `tools/legal_*.html` → `python3 tools/build_pages.py` |
+
+**Test mode.** Until `SQUARE_ENVIRONMENT=production`, payments use Square's sandbox (test cards, no real money) and **no domain is bought** (Cloudflare has no test mode), so you can try the whole flow for free. The last step then says where the site *would* be live.
+
+### Going live with the platform (do these in order)
+
+Keys go into Google Secret Manager with `firebase functions:secrets:set NAME` (it asks you to paste the value; nobody else sees it).
+
+1. **Claude.** At [console.anthropic.com](https://console.anthropic.com), add billing, create an API key, then `firebase functions:secrets:set ANTHROPIC_API_KEY`. Set a monthly spend limit there too. Each build or change costs about $0.25–$1.
+2. **Square (sandbox first).** At [developer.squareup.com](https://developer.squareup.com), create an application called Web Burrito. On *Credentials* (Sandbox): put the **Application ID** in `functions/.env` as `SQUARE_APPLICATION_ID`, and `firebase functions:secrets:set SQUARE_ACCESS_TOKEN` with the **Access token**. In *Locations* (sandbox), copy the location ID into `SQUARE_LOCATION_ID`. In *Webhooks → Subscriptions*, add `https://webburrito.com/api/app/square-webhook` with the events `invoice.payment_made`, `invoice.scheduled_charge_failed`, `subscription.created` and `subscription.updated`, then `firebase functions:secrets:set SQUARE_WEBHOOK_SIGNATURE_KEY` with its **Signature key**.
+3. **Cloudflare.** Add a payment method (*Billing*), set a default registrant contact (*Domain Registration → Manage → Default contact*), and accept the domain registration agreement. Put the **Account ID** in `functions/.env` as `CLOUDFLARE_ACCOUNT_ID`. Create an API token (*My Profile → API Tokens → Create custom token*) with: Account → *Registrar: Domains Edit*, *Workers Scripts Edit*, *Workers KV Storage Edit*, *Email Routing Addresses Edit*; Zone (all zones) → *Zone Read*, *DNS Edit*, *Workers Routes Edit*, *Email Routing Rules Edit*. Then `firebase functions:secrets:set CLOUDFLARE_API_TOKEN`.
+4. **Email sign-in links.** Firebase console → *Authentication → Sign-in method → Email/Password* → turn on *Email link (passwordless sign-in)*.
+5. **Deploy:** `firebase deploy --only functions,hosting,firestore`
+6. On `/admin/`, under *Customers*: click **Create Square plans**, then **Set up site hosting**. The line above them says when sign-ups are open.
+7. **Try it** at `/app/` with Square's test card `4111 1111 1111 1111` (any future date, any CVV, ZIP 94103).
+8. **Real payments:** switch the Square app to *Production* credentials (new Application ID, access token, location ID `LAET0GFY9RXSR`, and a production webhook with its own signature key), set `SQUARE_ENVIRONMENT=production`, deploy again, and click **Create Square plans** once more (production has its own plans). From now on, a paid sign-up buys a real domain (about $10.44 a year on your Cloudflare card).
+9. **Read the [terms](/terms/) and [privacy policy](/privacy/)** and change anything that doesn't match how you run the business. They're a plain-language draft, not legal advice.
+10. **Link it:** point the home page's sign-up buttons to `/app/` when you're happy.
+
+Limits worth knowing: the Cloudflare Registrar API is in beta (it can register, but renewals stay on auto-renew in the dashboard, which the platform turns on for each domain). Only `.com .net .org .us .co .shop .biz` domains under $15 are bought automatically; premium domains are refused. US addresses only for now. Email addresses forward mail (they don't send).
 
 ## Local development
 
@@ -146,6 +185,8 @@ npx firebase-tools emulators:start --project demo-webburrito
 ```
 
 Then open http://127.0.0.1:5050. On `/admin/`, use *Emulator sign-in* and add yourself to `admins` in the emulator's Firestore. Function tests: `cd functions && npm test`.
+
+For the customer platform, put stand-in values in `functions/.secret.local` (one `NAME=value` per line for the four secrets) and point the `*_BASE_URL` settings at a local stand-in server in `functions/.env.local` (both files are git-ignored), so nothing calls the real Claude, Square or Cloudflare.
 
 The site is served from the repo root, so the `ignore` list in `firebase.json` is what keeps `.git`, `tools/`, `functions/` and this README off the web. If you add a folder that isn't part of the site, add it there too. Before every deploy, `tools/check_deploy.mjs` stops the deploy if anything that isn't in git would be published, such as a stray copy of the project in the Dropbox folder.
 

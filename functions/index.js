@@ -18,7 +18,7 @@
 import { onRequest } from "firebase-functions/https";
 import { setGlobalOptions } from "firebase-functions/options";
 import { logger } from "firebase-functions";
-import { initializeApp } from "firebase-admin/app";
+import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { parseEvent, parseMine, summarize, isBot, describeUA, language } from "./track.js";
@@ -27,9 +27,12 @@ import { parseLead } from "./lead.js";
 // maxInstances caps cost if someone floods the endpoint.
 setGlobalOptions({ region: "us-central1", maxInstances: 3 });
 
-initializeApp();
+if (!getApps().length) initializeApp();
 const db = getFirestore();
 const auth = getAuth();
+
+// The customer platform (webburrito.com/app/): accounts, AI builder, payments, domains, launch.
+export { app } from "./app/index.js";
 
 // invoker "public": the website (through Firebase Hosting) calls this without signing in,
 // so anyone must be allowed to invoke it. Every request is validated below.

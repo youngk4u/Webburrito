@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Your site | Web Burrito</title>
+<meta name="description" content="Build your business website with Web Burrito, pick a plan, and go live on your own .com.">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Figtree:wght@400;600;800&display=swap">
+<style>
+:root{--ink:#141210;--ink-2:#5B524A;--salsa:#E23B2E;--salsa-ink:#B3261E;--wall:#FFD23F;--page:#FBF7F0;--card:#FFFFFF;--line:#E4DACB;--ok:#1F7A3A;--soft:#F3ECE0;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#F5EFE6;--ink-2:#B9AE9F;--salsa-ink:#FF8A7E;--page:#141210;--card:#1E1A16;--line:#3A3229;--ok:#6BCB86;--soft:#2A241E;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F5EFE6;--ink-2:#B9AE9F;--salsa-ink:#FF8A7E;--page:#141210;--card:#1E1A16;--line:#3A3229;--ok:#6BCB86;--soft:#2A241E;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--page);color:var(--ink);font-family:"Figtree",ui-sans-serif,system-ui,sans-serif;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+.bar{height:10px;background:var(--wall);border-bottom:3px solid #141210}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem;max-width:1180px;margin:0 auto;padding:1.1rem 16px}
+.logo{display:inline-flex;font-family:"Bungee",Impact,sans-serif;font-size:1rem;text-transform:uppercase;border:3px solid var(--ink);border-radius:999px;padding:.2rem .8rem .16rem;color:var(--ink);text-decoration:none}
+.logo b{font-weight:400;color:var(--salsa)}
+.top .who{margin-left:auto;color:var(--ink-2);font-size:.9rem;overflow-wrap:anywhere}
+main{max-width:1180px;margin:0 auto;padding:0 16px 5rem}
+h1,h2{font-family:"Bungee",Impact,sans-serif;font-weight:400;line-height:1.1;margin:0}
+h1{font-size:clamp(1.7rem,1.2rem + 2.4vw,2.6rem)}
+h2{font-size:1.2rem}
+h3{font-size:1rem;margin:0 0 .4rem}
+p{margin:0}
+a{color:var(--salsa-ink)}
+.muted{color:var(--ink-2)}
+.small{font-size:.9rem}
+button,.btn{font:800 1rem "Figtree",ui-sans-serif,system-ui,sans-serif;min-height:48px;padding:0 1.3rem;border-radius:999px;border:3px solid #141210;background:var(--salsa);color:#fff;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:.5rem}
+button[disabled]{opacity:.55;cursor:default}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--ink);min-height:40px;padding:0 1rem;font-size:.9rem}
+button.link{all:unset;cursor:pointer;color:var(--salsa-ink);font-weight:800;text-decoration:underline;text-underline-offset:3px}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,.link:focus-visible{outline:3px solid var(--salsa);outline-offset:2px}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--card);border:2px solid var(--ink);border-radius:12px;padding:.65rem .8rem;width:100%;min-height:48px}
+textarea{min-height:96px;resize:vertical}
+label{display:grid;gap:.3rem;font-weight:600;font-size:.95rem}
+label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
+.card{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:1.4rem}
+.stack{display:grid;gap:1rem;align-content:start}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+@media (max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+.center{max-width:480px;margin:3rem auto 0;text-align:center;display:grid;gap:1rem;justify-items:center}
+.err{color:var(--salsa-ink);font-weight:700}
+.err:empty{display:none}
+.ok{color:var(--ok);font-weight:700}
+.section{margin-top:2rem}
+.section > .head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1rem;margin-bottom:.9rem}
+.step{display:inline-grid;place-items:center;width:2rem;height:2rem;border-radius:50%;background:var(--wall);color:#141210;border:2px solid #141210;font-family:"Bungee",Impact,sans-serif;font-size:.95rem}
+.done-mark{color:var(--ok);font-weight:800;font-size:.9rem}
+
+/* builder */
+.builder{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:1rem;align-items:start}
+@media (max-width:900px){.builder{grid-template-columns:1fr}}
+.frame{background:var(--card);border:2px solid var(--ink);border-radius:18px;overflow:hidden}
+.frame .tools{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .8rem;border-bottom:2px solid var(--line)}
+.frame .tools .seg{display:inline-flex;border:2px solid var(--ink);border-radius:999px;overflow:hidden}
+.frame .tools .seg button{all:unset;cursor:pointer;padding:.35rem .9rem;font-weight:800;font-size:.85rem}
+.frame .tools .seg button[aria-pressed="true"]{background:var(--ink);color:var(--page)}
+.frame .tools .seg button:focus-visible{outline:3px solid var(--salsa);outline-offset:-3px}
+.frame .view{background:var(--soft);display:flex;justify-content:center}
+.frame iframe{border:0;width:100%;height:min(72vh,760px);background:#fff;display:block}
+.frame.phone iframe{width:390px;max-width:100%}
+.empty-site{padding:3rem 1.5rem;text-align:center;color:var(--ink-2)}
+.chat{display:grid;gap:.8rem}
+.msgs{list-style:none;margin:0;padding:0;display:grid;gap:.5rem;max-height:46vh;overflow:auto}
+.msgs li{padding:.6rem .8rem;border-radius:14px;background:var(--soft);font-size:.95rem;white-space:pre-wrap;overflow-wrap:anywhere}
+.msgs li.owner{background:var(--ink);color:var(--page);justify-self:end;max-width:90%}
+.msgs li.failed{border:2px solid var(--salsa)}
+.working{display:flex;gap:.6rem;align-items:center;font-weight:700}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--salsa);animation:pulse 1s infinite alternate}
+@keyframes pulse{to{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+
+/* plans */
+.plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+@media (max-width:760px){.plans{grid-template-columns:1fr}}
+.plan{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:.3rem;background:var(--card);border:2px solid var(--line);border-radius:16px;padding:1rem 1.1rem}
+.plan[aria-checked="true"]{border-color:var(--ink);box-shadow:0 0 0 3px var(--wall)}
+.plan:focus-visible{outline:3px solid var(--salsa);outline-offset:2px}
+.plan b{font-family:"Bungee",Impact,sans-serif;font-weight:400;font-size:1.05rem}
+.plan .price{font-size:1.5rem;font-weight:800}
+.billing{display:inline-flex;gap:1rem;align-items:center;margin:.2rem 0 1rem}
+.billing label{display:inline-flex;grid-template-columns:none;gap:.4rem;align-items:center;font-weight:700}
+.billing input{width:20px;height:20px;min-height:0;accent-color:var(--salsa)}
+.domain-row{display:flex;gap:.6rem;flex-wrap:wrap}
+.domain-row input{flex:1;min-width:200px}
+.sugg{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
+.sugg button{min-height:36px;font-size:.85rem;background:transparent;color:var(--ink)}
+#card-container{min-height:90px}
+.total{display:flex;justify-content:space-between;gap:1rem;font-weight:800;font-size:1.1rem;padding:.8rem 0;border-top:2px solid var(--line)}
+.check{display:flex;gap:.6rem;align-items:flex-start;font-weight:400}
+.check input{width:20px;height:20px;min-height:0;margin-top:.15rem;accent-color:var(--salsa)}
+
+/* status */
+.timeline{list-style:none;margin:0;padding:0;display:grid;gap:.2rem}
+.timeline li{display:grid;grid-template-columns:2rem 1fr;gap:.7rem;align-items:start;padding:.5rem 0}
+.timeline .icon{width:2rem;height:2rem;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-weight:800}
+.timeline li.done .icon{background:var(--ok);border-color:var(--ok);color:#fff}
+.timeline li.now .icon{border-color:var(--salsa)}
+.timeline li.now .icon::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--salsa)}
+.timeline li.bad .icon{background:var(--salsa);border-color:var(--salsa);color:#fff}
+.live-link{font-size:1.25rem;font-weight:800;overflow-wrap:anywhere}
+.reasons{margin:.3rem 0 0;padding-left:1.2rem}
+.pill{display:inline-block;font-size:.78rem;font-weight:800;border-radius:999px;padding:.05rem .55rem;border:1.5px solid currentColor}
+.forward{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1.4fr) auto;gap:.5rem;align-items:center}
+@media (max-width:560px){.forward{grid-template-columns:1fr auto}}
+</style>
+</head>
+<body>
+<div class="bar"></div>
+<header class="top">
+  <a class="logo" href="/">web<b>burrito</b></a>
+  <span class="who" id="who"></span>
+  <button class="ghost" id="out" type="button" hidden>Sign out</button>
+</header>
+<main>
+  <noscript><p class="center">This page needs JavaScript.</p></noscript>
+  <section id="v-loading" class="center"><p class="muted">Loading…</p></section>
+
+  <section id="v-signin" class="center card" hidden>
+    <h1>Your website</h1>
+    <p>Build it with us, see it right away, and put it online on your own .com.</p>
+    <button id="google" type="button">Continue with Google</button>
+    <p class="muted small">or get a sign-in link by email</p>
+    <form id="email-form" class="stack" style="width:100%">
+      <label>Email<input id="email" type="email" autocomplete="email" required></label>
+      <button type="submit" class="ghost">Email me a sign-in link</button>
+    </form>
+    <p class="err" id="signin-err" role="alert"></p>
+    <p class="muted small">By continuing you agree to the <a href="/terms/">terms</a> and <a href="/privacy/">privacy policy</a>.</p>
+  </section>
+
+  <section id="v-sent" class="center card" hidden>
+    <h1>Check your email</h1>
+    <p>We sent a sign-in link to <b id="sent-to"></b>. Open it on this device.</p>
+    <button class="link" type="button" id="sent-back">Use a different email</button>
+  </section>
+
+  <section id="v-app" hidden>
+    <!-- 1. business -->
+    <section class="section" id="s-profile">
+      <div class="head"><span class="step">1</span><h2>Your business</h2><span class="done-mark" id="profile-done" hidden>Saved</span>
+        <button class="link" type="button" id="profile-edit" hidden>Edit</button></div>
+      <form id="profile-form" class="card stack" hidden>
+        <div class="grid2">
+          <label>Business name<input name="business" required maxlength="120" autocomplete="organization"></label>
+          <label>What you do<input name="type" maxlength="80" placeholder="Bakery, tire shop, barber…"></label>
+          <label>City<input name="city" maxlength="80" autocomplete="address-level2"></label>
+          <label>Phone<input name="phone" maxlength="40" autocomplete="tel" inputmode="tel"></label>
+          <label>Street address<span class="hint">Leave blank if customers don't visit you.</span><input name="address" maxlength="200" autocomplete="street-address"></label>
+          <label>Business email<span class="hint">Optional</span><input name="email" type="email" maxlength="120"></label>
+        </div>
+        <label>Hours<span class="hint">Like "Mon–Sat 7am–6pm, closed Sunday"</span><input name="hours" maxlength="400"></label>
+        <label>Services or menu<span class="hint">What you sell, with prices if you want them shown.</span><textarea name="services" maxlength="2000"></textarea></label>
+        <label>About you<span class="hint">How long you've been open, what you're known for, languages you speak.</span><textarea name="about" maxlength="2000"></textarea></label>
+        <div><button type="submit" id="profile-save">Save</button></div>
+        <p class="err" id="profile-err" role="alert"></p>
+      </form>
+    </section>
+
+    <!-- 2. site -->
+    <section class="section" id="s-site" hidden>
+      <div class="head"><span class="step">2</span><h2>Your site</h2><span class="muted small" id="tries"></span></div>
+
+      <div id="start" class="grid2">
+        <form id="claim-form" class="card stack">
+          <h3>Start from your preview</h3>
+          <p class="muted small">Got a link from Web Burrito, like webburrito.com/your-shop? Start from that design.</p>
+          <label>Preview link<input id="claim-link" placeholder="webburrito.com/your-shop" required></label>
+          <label>Passcode<input id="claim-code" inputmode="numeric" autocomplete="off" required></label>
+          <div><button type="submit" id="claim-go">Use this design</button></div>
+          <p class="err" id="claim-err" role="alert"></p>
+        </form>
+        <form id="new-form" class="card stack">
+          <h3>Start fresh</h3>
+          <p class="muted small">Tell us anything about the look you want. We'll use the details from step 1.</p>
+          <label>What should it look like?<textarea id="new-ask" maxlength="2000" placeholder="Warm and friendly, our colors are red and cream, show our pan dulce first."></textarea></label>
+          <div><button type="submit" id="new-go">Build my site</button></div>
+          <p class="err" id="new-err" role="alert"></p>
+        </form>
+      </div>
+
+      <div id="workbench" class="builder" hidden>
+        <div class="frame" id="frame">
+          <div class="tools">
+            <span class="seg" role="group" aria-label="Preview size">
+              <button type="button" id="as-phone" aria-pressed="false">Phone</button>
+              <button type="button" id="as-desk" aria-pressed="true">Computer</button>
+            </span>
+            <span class="muted small" id="draft-note"></span>
+          </div>
+          <div class="view"><iframe id="preview" title="Your site" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe></div>
+        </div>
+        <div class="card chat">
+          <h3>Ask for changes</h3>
+          <ol class="msgs" id="msgs" aria-live="polite"></ol>
+          <div class="working" id="working" hidden><span class="dot"></span><span>Working on it. This takes about a minute.</span></div>
+          <form id="ask-form" class="stack">
+            <textarea id="ask" aria-label="What should change?" maxlength="2000" placeholder="Make the header red. Add our Sunday hours. Put the menu first."></textarea>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+              <button type="submit" id="ask-go">Make the change</button>
+              <button type="button" class="ghost" id="undo">Undo last change</button>
+            </div>
+            <p class="err" id="ask-err" role="alert"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. go live -->
+    <section class="section" id="s-live" hidden>
+      <div class="head"><span class="step">3</span><h2>Go live</h2></div>
+      <div class="card stack" id="closed" hidden><p>Sign-ups open soon. Call or text <a href="tel:+13102798278">(310) 279-8278</a> and we'll set you up by hand.</p></div>
+      <form id="buy-form" class="stack" hidden>
+        <div class="card stack">
+          <h3>Pick a plan</h3>
+          <div class="billing" role="radiogroup" aria-label="Billing">
+            <label><input type="radio" name="billing" value="monthly" checked> Monthly</label>
+            <label><input type="radio" name="billing" value="yearly"> Yearly (save more)</label>
+          </div>
+          <div class="plans" id="plans" role="radiogroup" aria-label="Plan"></div>
+          <p class="muted small">Every plan: your site, your own .com in your name, hosting, and changes by asking here. Cancel any time.</p>
+        </div>
+
+        <div class="card stack">
+          <h3>Your domain</h3>
+          <div class="domain-row">
+            <input id="domain" placeholder="rosasbakery.com" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Domain name">
+            <button type="button" class="ghost" id="domain-check">Check</button>
+          </div>
+          <p id="domain-result" aria-live="polite"></p>
+          <div class="sugg" id="domain-sugg"></div>
+        </div>
+
+        <div class="card stack">
+          <h3>Domain owner</h3>
+          <p class="muted small">The domain is registered in this name. It has to be real; it's kept private from the public.</p>
+          <div class="grid2">
+            <label>First name<input name="first" required autocomplete="given-name"></label>
+            <label>Last name<input name="last" required autocomplete="family-name"></label>
+            <label>Email<input name="cemail" type="email" required autocomplete="email"></label>
+            <label>Phone<input name="cphone" required autocomplete="tel" inputmode="tel"></label>
+            <label>Street address<input name="street" required autocomplete="address-line1"></label>
+            <label>City<input name="ccity" required autocomplete="address-level2"></label>
+            <label>State<input name="state" required maxlength="2" placeholder="CA" autocomplete="address-level1"></label>
+            <label>ZIP code<input name="zip" required maxlength="10" inputmode="numeric" autocomplete="postal-code"></label>
+          </div>
+        </div>
+
+        <div class="card stack">
+          <h3>Card</h3>
+          <p class="pill" id="test-note" hidden>Test mode: use Square's test card 4111 1111 1111 1111. No real charge, no domain bought.</p>
+          <div id="card-container"></div>
+          <div class="total"><span id="total-label">Today</span><span id="total"></span></div>
+          <label class="check"><input type="checkbox" id="agree" required> <span>I agree to the <a href="/terms/" target="_blank" rel="noopener">terms</a>, including the 14-day money-back policy. I'm the owner of this business or allowed to act for it.</span></label>
+          <div><button type="submit" id="pay">Pay and go live</button></div>
+          <p class="err" id="pay-err" role="alert"></p>
+          <p class="muted small">Payments by Square. We never see or store your card number.</p>
+        </div>
+      </form>
+
+      <div class="card stack" id="progress" hidden>
+        <ol class="timeline" id="timeline"></ol>
+        <p class="err" id="progress-err" role="alert"></p>
+        <ul class="reasons" id="reasons"></ul>
+        <div id="live-box" hidden>
+          <p class="muted small">Your site is live at</p>
+          <a class="live-link" id="live-link" target="_blank" rel="noopener"></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. manage -->
+    <section class="section" id="s-manage" hidden>
+      <div class="head"><span class="step">4</span><h2>Your plan</h2></div>
+      <div class="grid2">
+        <div class="card stack">
+          <h3>Publish changes</h3>
+          <p class="muted small" id="publish-note">Changes you make above stay in the preview until you publish them.</p>
+          <div><button type="button" id="publish">Publish changes</button></div>
+          <p class="err" id="publish-err" role="alert"></p>
+          <p class="ok" id="publish-ok" role="status"></p>
+        </div>
+        <div class="card stack">
+          <h3 id="plan-name"></h3>
+          <p class="muted small" id="plan-line"></p>
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+            <button type="button" class="ghost" id="card-change">Change card</button>
+            <button type="button" class="ghost" id="cancel">Cancel plan</button>
+          </div>
+          <div id="card-box" class="stack" hidden>
+            <div id="card2-container"></div>
+            <label>ZIP code<input id="card2-zip" inputmode="numeric" maxlength="10"></label>
+            <div><button type="button" id="card2-save">Save card</button></div>
+          </div>
+          <p class="err" id="plan-err" role="alert"></p>
+        </div>
+        <div class="card stack" id="email-box" hidden>
+          <h3>Business email</h3>
+          <p class="muted small" id="email-note"></p>
+          <div class="stack" id="forwards"></div>
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+            <button type="button" class="ghost" id="fwd-add">Add an address</button>
+            <button type="button" id="fwd-save">Save addresses</button>
+          </div>
+          <p class="err" id="email-err" role="alert"></p>
+          <p class="ok" id="email-ok" role="status"></p>
+        </div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<script type="module">
+const V = "13.1.0";
+const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+const fa = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+const fs = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+
+const $ = (id) => document.getElementById(id);
+const views = ["v-loading", "v-signin", "v-sent", "v-app"];
+const show = (id) => views.forEach((v) => ($(v).hidden = v !== id));
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
+  return el;
+}
+const money = (cents) => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`;
+const busy = (btn, on, label) => { btn.disabled = on; if (label) { btn.dataset.label ??= btn.textContent; btn.textContent = on ? label : btn.dataset.label; } };
+const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+
+// ---------- Firebase ----------
+const local = ["localhost", "127.0.0.1"].includes(location.hostname);
+let fbConfig;
+try {
+  const r = await fetch("/__/firebase/init.json");
+  if (!r.ok) throw new Error(r.status);
+  fbConfig = await r.json();
+} catch {
+  show("v-signin");
+  $("signin-err").textContent = "This page can't connect right now. Try again later.";
+  throw new Error("no firebase config");
+}
+const fbApp = initializeApp(fbConfig);
+const auth = fa.getAuth(fbApp);
+const db = fs.getFirestore(fbApp);
+if (local) {
+  fa.connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  fs.connectFirestoreEmulator(db, "127.0.0.1", 8080);
+}
+
+const cfg = await fetch("/api/app/config").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+async function api(path, body = {}) {
+  const token = await auth.currentUser.getIdToken();
+  const r = await fetch(`/api/app${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ...body, _auth: token }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.ok === false) throw new Error(j.error || `Something went wrong (${r.status}). Try again.`);
+  return j;
+}
+
+// ---------- sign-in ----------
+$("google").addEventListener("click", async () => {
+  $("signin-err").textContent = "";
+  try {
+    if (local) {
+      const email = prompt("Emulator email", "owner@example.com");
+      if (!email) return;
+      await fa.signInWithCredential(auth, fa.GoogleAuthProvider.credential(JSON.stringify({ sub: email, email, email_verified: true })));
+    } else {
+      await fa.signInWithPopup(auth, new fa.GoogleAuthProvider());
+    }
+  } catch (e) {
+    if (!["auth/popup-closed-by-user", "auth/cancelled-popup-request"].includes(e.code)) {
+      $("signin-err").textContent = e.code === "auth/popup-blocked" ? "Your browser blocked the sign-in window. Allow pop-ups and try again." : `Sign-in didn't work (${e.code || e.message}).`;
+    }
+  }
+});
+$("email-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("email").value.trim();
+  try {
+    await fa.sendSignInLinkToEmail(auth, email, { url: `${location.origin}/app/`, handleCodeInApp: true });
+    try { localStorage.setItem("wb-signin-email", email); } catch {}
+    $("sent-to").textContent = email;
+    show("v-sent");
+  } catch (err) {
+    $("signin-err").textContent = `Couldn't send the link (${err.code || err.message}).`;
+  }
+});
+$("sent-back").addEventListener("click", () => show("v-signin"));
+if (fa.isSignInWithEmailLink(auth, location.href)) {
+  let email = null;
+  try { email = localStorage.getItem("wb-signin-email"); } catch {}
+  if (!email) email = prompt("Confirm your email to finish signing in");
+  if (email) {
+    try {
+      await fa.signInWithEmailLink(auth, email, location.href);
+      history.replaceState(null, "", "/app/");
+    } catch (err) {
+      $("signin-err").textContent = "That sign-in link has expired or was already used. Ask for a new one.";
+    }
+  }
+}
+$("out").addEventListener("click", () => fa.signOut(auth));
+
+// ---------- state ----------
+let me = null; // users/{uid}
+let draft = null;
+let stops = [];
+let working = false;
+
+fa.onAuthStateChanged(auth, (user) => {
+  stops.forEach((f) => f());
+  stops = [];
+  $("out").hidden = !user;
+  $("who").textContent = user?.email || "";
+  if (!user) return show("v-signin");
+  show("v-app");
+  const ref = fs.doc(db, "users", user.uid);
+  stops.push(
+    fs.onSnapshot(ref, (s) => { me = s.data() || {}; render(); }, () => {}),
+    fs.onSnapshot(fs.doc(db, "users", user.uid, "site", "draft"), (s) => { draft = s.data() || null; renderSite(); render(); }, () => {}),
+    fs.onSnapshot(fs.query(fs.collection(db, "users", user.uid, "messages"), fs.orderBy("at", "asc"), fs.limitToLast(60)), (s) => renderMsgs(s.docs.map((d) => d.data())), () => {}),
+  );
+  api("/status").catch(() => {}); // makes the account, and moves a launch forward if one is waiting
+});
+
+// ---------- 1. business ----------
+const PF = ["business", "type", "city", "phone", "address", "email", "hours", "services", "about"];
+let profileEditing = false;
+let filledFrom = null;
+function fillProfile() {
+  const now = JSON.stringify(me.profile || {});
+  if (now === filledFrom) return;
+  filledFrom = now;
+  const f = $("profile-form");
+  for (const k of PF) if (!f.elements[k].dataset.dirty) f.elements[k].value = me.profile?.[k] || ""; // never overwrite typing
+}
+$("profile-form").addEventListener("input", (e) => { if (e.target.name) e.target.dataset.dirty = "1"; });
+$("profile-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const profile = Object.fromEntries(PF.map((k) => [k, f.elements[k].value]));
+  $("profile-err").textContent = "";
+  busy($("profile-save"), true, "Saving…");
+  try {
+    await api("/profile", { profile });
+    for (const k of PF) delete f.elements[k].dataset.dirty;
+    profileEditing = false;
+  } catch (err) {
+    $("profile-err").textContent = err.message;
+  } finally {
+    busy($("profile-save"), false, "Saving…");
+  }
+});
+$("profile-edit").addEventListener("click", () => {
+  profileEditing = true;
+  filledFrom = null;
+  for (const k of PF) delete $("profile-form").elements[k].dataset.dirty;
+  render();
+  $("profile-form").elements.business.focus();
+});
+
+// ---------- 2. site ----------
+function renderSite() {
+  const has = Boolean(draft?.html);
+  $("start").hidden = has;
+  $("workbench").hidden = !has;
+  if (has && $("preview").dataset.hash !== draft.hash) {
+    $("preview").srcdoc = draft.html;
+    $("preview").dataset.hash = draft.hash;
+  }
+}
+function renderMsgs(list) {
+  $("msgs").replaceChildren(...list.map((m) => h("li", { class: [m.role === "owner" ? "owner" : "", m.failed ? "failed" : ""].join(" ").trim() || null }, m.text)));
+  $("msgs").scrollTop = $("msgs").scrollHeight;
+}
+function setSize(phone) {
+  $("frame").classList.toggle("phone", phone);
+  $("as-phone").setAttribute("aria-pressed", String(phone));
+  $("as-desk").setAttribute("aria-pressed", String(!phone));
+}
+$("as-phone").addEventListener("click", () => setSize(true));
+$("as-desk").addEventListener("click", () => setSize(false));
+if (matchMedia("(max-width:560px)").matches) setSize(true);
+
+async function runBuild(request, btn, errEl) {
+  errEl.textContent = "";
+  working = true;
+  $("working").hidden = false;
+  busy(btn, true, "Working…");
+  try {
+    await api("/build", { request });
+    return true;
+  } catch (err) {
+    errEl.textContent = err.message;
+    return false;
+  } finally {
+    working = false;
+    $("working").hidden = true;
+    busy(btn, false, "Working…");
+    render();
+  }
+}
+$("new-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  await runBuild($("new-ask").value.trim(), $("new-go"), $("new-err"));
+});
+$("ask-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const ask = $("ask").value.trim();
+  if (!ask) return $("ask").focus();
+  if (await runBuild(ask, $("ask-go"), $("ask-err"))) $("ask").value = "";
+});
+$("undo").addEventListener("click", async () => {
+  $("ask-err").textContent = "";
+  try { await api("/undo"); } catch (err) { $("ask-err").textContent = err.message; }
+});
+
+// Start from a Web Burrito preview: decrypt it here with the passcode, like the preview page does.
+$("claim-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("claim-err").textContent = "";
+  const slug = ($("claim-link").value.trim().toLowerCase().match(/(?:webburrito\.com\/)?([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/) || [])[1];
+  if (!slug) return ($("claim-err").textContent = "Paste the link we sent you, like webburrito.com/your-shop.");
+  busy($("claim-go"), true, "Opening…");
+  try {
+    const page = await fetch(`/${slug}/`).then((r) => (r.ok ? r.text() : Promise.reject(new Error("not found"))));
+    const m = /<script type="application\/json" id="payload">([\s\S]*?)<\/script>/.exec(page);
+    if (!m) throw new Error("not found");
+    const html = await decryptPreview(JSON.parse(m[1]), $("claim-code").value.trim());
+    await api("/claim", { slug, html });
+  } catch (err) {
+    $("claim-err").textContent = err.message === "not found" ? "We couldn't find that preview. Check the link." : err.name === "OperationError" ? "That passcode didn't work." : err.message;
+  } finally {
+    busy($("claim-go"), false, "Opening…");
+  }
+});
+async function decryptPreview(P, code) {
+  const b = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: b(P.salt), iterations: P.iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  let buf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b(P.iv) }, key, b(P.ct));
+  if (P.z === "gz") buf = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+  return new TextDecoder().decode(buf);
+}
+
+// ---------- 3. go live ----------
+let plan = "regular";
+let payments = null, card = null, card2 = null;
+let checkoutId = rid();
+let domainOk = null;
+
+function billing() { return document.querySelector('input[name="billing"]:checked').value; }
+function renderPlans() {
+  if (!cfg) return;
+  $("plans").replaceChildren(...Object.entries(cfg.plans).map(([key, p]) => h("button", {
+    type: "button", class: "plan", role: "radio", "aria-checked": String(plan === key),
+    onclick: () => { plan = key; renderPlans(); },
+  },
+  h("b", null, p.name),
+  h("span", { class: "price" }, billing() === "monthly" ? `${money(p.monthly)}/mo` : `${money(p.yearly)}/yr`),
+  h("span", { class: "muted small" }, p.emails ? `${p.emails} business email addresses` : "Site, domain and hosting"),
+  )));
+  const p = cfg.plans[plan];
+  $("total").textContent = billing() === "monthly" ? `${money(p.monthly)}, then monthly` : `${money(p.yearly)}, then yearly`;
+}
+document.querySelectorAll('input[name="billing"]').forEach((r) => r.addEventListener("change", renderPlans));
+
+$("domain").addEventListener("input", () => { domainOk = null; $("domain-result").textContent = ""; $("domain-sugg").replaceChildren(); });
+$("domain").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); checkDomain(); } });
+$("domain-check").addEventListener("click", () => checkDomain());
+async function checkDomain(name) {
+  if (name) $("domain").value = name;
+  const d = $("domain").value.trim();
+  if (!d) return $("domain").focus();
+  $("domain-result").textContent = "Checking…";
+  $("domain-sugg").replaceChildren();
+  try {
+    const r = await api("/domain-check", { domain: d });
+    domainOk = r.available ? r.domain : null;
+    $("domain-result").replaceChildren(r.available
+      ? h("span", { class: "ok" }, `${r.domain} is yours if you want it. Included in your plan.`)
+      : h("span", { class: "err" }, `${r.domain} isn't available${r.why && r.why !== "taken" && r.why !== "domain_unavailable" ? ` (${r.why})` : ""}.`));
+    if (r.suggestions?.length) {
+      $("domain-sugg").replaceChildren(h("span", { class: "muted small" }, "Try:"), ...r.suggestions.map((s) => h("button", { type: "button", class: "ghost", onclick: () => checkDomain(s.domain) }, s.domain)));
+    }
+  } catch (err) {
+    domainOk = null;
+    $("domain-result").replaceChildren(h("span", { class: "err" }, err.message));
+  }
+}
+
+async function loadSquare() {
+  if (payments || !cfg?.square?.applicationId) return payments;
+  const src = cfg.square.environment === "production" ? "https://web.squarecdn.com/v1/square.js" : "https://sandbox.web.squarecdn.com/v1/square.js";
+  await new Promise((ok, bad) => document.head.append(h("script", { src, onload: ok, onerror: bad })));
+  payments = window.Square.payments(cfg.square.applicationId, cfg.square.locationId);
+  return payments;
+}
+async function mountCard() {
+  if (card) return;
+  try {
+    await loadSquare();
+    card = await payments.card();
+    await card.attach("#card-container");
+  } catch (err) {
+    $("pay-err").textContent = "The card form didn't load. Refresh the page to try again.";
+  }
+}
+async function tokenize(c, contact) {
+  const r = await c.tokenize();
+  if (r.status !== "OK") throw new Error(r.errors?.[0]?.message || "Check the card details.");
+  let verificationToken = null;
+  try {
+    const v = await payments.verifyBuyer(r.token, {
+      intent: "STORE",
+      billingContact: contact ? { givenName: contact.first, familyName: contact.last, email: contact.email, phone: contact.phone, addressLines: [contact.street], city: contact.city, state: contact.state, postalCode: contact.zip, countryCode: "US" } : {},
+    });
+    verificationToken = v?.token || null;
+  } catch {}
+  return { cardToken: r.token, verificationToken };
+}
+
+$("buy-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("pay-err").textContent = "";
+  const f = e.target;
+  if (!domainOk) { $("pay-err").textContent = "Check a domain name first."; return $("domain").focus(); }
+  const contact = {
+    first: f.elements.first.value, last: f.elements.last.value, email: f.elements.cemail.value, phone: f.elements.cphone.value,
+    street: f.elements.street.value, city: f.elements.ccity.value, state: f.elements.state.value.trim().toUpperCase(), zip: f.elements.zip.value.trim(), org: me.profile?.business || "",
+  };
+  busy($("pay"), true, "Paying…");
+  try {
+    const tok = await tokenize(card, contact);
+    await api("/subscribe", { plan, billing: billing(), domain: domainOk, contact, checkoutId, ...tok });
+  } catch (err) {
+    checkoutId = rid(); // a retry is a new payment attempt (the server refuses a second plan)
+    $("pay-err").textContent = err.message;
+  } finally {
+    busy($("pay"), false, "Paying…");
+  }
+});
+
+// Launch progress
+const STEPS = [
+  ["pay", "Payment"],
+  ["domain", "Your domain"],
+  ["check", "Site check"],
+  ["live", "Live"],
+];
+function stepIndex(u) {
+  const s = u.launch?.state;
+  if (s === "live" && u.live?.state === "live") return 4;
+  if (!u.plan?.paid) return 0;
+  if (u.domain?.state !== "registered") return 1;
+  if (s === "checking" || s === "needs_changes") return 2;
+  return 3;
+}
+function renderProgress() {
+  const i = stepIndex(me);
+  const bad = ["needs_changes", "needs_attention", "needs_domain", "payment_failed"].includes(me.launch?.state);
+  const notes = {
+    pay: me.plan?.paid ? `Paid with ${me.plan.cardBrand || "card"} ending ${me.plan.cardLast4 || ""}` : me.launch?.state === "payment_failed" ? "The payment didn't go through" : "Waiting for the payment to go through…",
+    domain: me.domain?.state === "registered" ? `${me.domain.name} is registered in your name` : me.domain?.name ? `Registering ${me.domain.name}…` : "",
+    check: me.launch?.state === "needs_changes" ? "A few things to fix first (below)" : i > 2 ? "Passed" : "We check every site before it goes online",
+    live: i >= 4 ? "Your site is online" : me.launch?.state === "publishing" ? "Putting it online…" : "",
+  };
+  $("timeline").replaceChildren(...STEPS.map(([k, label], n) => h("li", { class: n < i ? "done" : n === i ? (bad ? "bad" : "now") : null },
+    h("span", { class: "icon", "aria-hidden": "true" }, n < i ? "✓" : n === i && bad ? "!" : ""),
+    h("span", null, h("b", null, label), h("br"), h("span", { class: "muted small" }, notes[k] || "")))));
+  $("progress-err").textContent = me.launch?.error || me.domain?.error || "";
+  $("reasons").replaceChildren(...(me.launch?.state === "needs_changes" ? (me.launch.reasons || []) : []).map((r) => h("li", null, r)));
+  const live = me.live?.state === "live" && me.domain?.name;
+  $("live-box").hidden = !live;
+  if (live && me.live.test) {
+    $("live-box").firstElementChild.textContent = "Test mode finished. With real payments on, your site would now be live at";
+    $("live-link").removeAttribute("href");
+    $("live-link").textContent = me.domain.name;
+  } else if (live) {
+    $("live-link").href = `https://${me.domain.name}/`;
+    $("live-link").textContent = me.domain.name;
+  }
+}
+let poll = null;
+function keepPolling(on) {
+  if (on && !poll) poll = setInterval(() => api("/status").catch(() => {}), 12000);
+  if (!on && poll) { clearInterval(poll); poll = null; }
+}
+
+// ---------- 4. manage ----------
+$("publish").addEventListener("click", async () => {
+  $("publish-err").textContent = $("publish-ok").textContent = "";
+  busy($("publish"), true, "Checking and publishing…");
+  try {
+    const r = await api("/publish");
+    if (r.published) $("publish-ok").textContent = "Published. It's live now.";
+    else $("publish-err").textContent = `Not published yet: ${(r.reasons || []).join(" ")}`;
+  } catch (err) {
+    $("publish-err").textContent = err.message;
+  } finally {
+    busy($("publish"), false, "Checking and publishing…");
+    render(); // back to "nothing to publish" once the live site matches
+  }
+});
+$("cancel").addEventListener("click", async () => {
+  if (!confirm("Cancel your plan? Your site stays up until the end of the period you've paid for, then goes offline.")) return;
+  $("plan-err").textContent = "";
+  try { await api("/cancel"); } catch (err) { $("plan-err").textContent = err.message; }
+});
+$("card-change").addEventListener("click", async () => {
+  $("card-box").hidden = false;
+  if (!card2) {
+    try { await loadSquare(); card2 = await payments.card(); await card2.attach("#card2-container"); }
+    catch { $("plan-err").textContent = "The card form didn't load. Refresh to try again."; }
+  }
+});
+$("card2-save").addEventListener("click", async () => {
+  $("plan-err").textContent = "";
+  busy($("card2-save"), true, "Saving…");
+  try {
+    const tok = await tokenize(card2, null);
+    await api("/card", { ...tok, zip: $("card2-zip").value.trim() });
+    $("card-box").hidden = true;
+  } catch (err) {
+    $("plan-err").textContent = err.message;
+  } finally {
+    busy($("card2-save"), false, "Saving…");
+  }
+});
+let forwards = null;
+function renderForwards() {
+  const max = cfg?.plans?.[me.plan?.id]?.emails || 0;
+  forwards ??= (me.email?.forwards || []).map((f) => ({ ...f }));
+  $("email-note").textContent = `Up to ${max} addresses at ${me.domain?.name || "your domain"}. Mail to them goes to the inbox you pick. The first time, that inbox gets a confirmation email from Cloudflare: click it.`;
+  $("forwards").replaceChildren(...forwards.map((f, i) => h("div", { class: "forward" },
+    h("input", { value: f.local, "aria-label": "Address", placeholder: "info", oninput: (e) => (f.local = e.target.value.trim()) }),
+    h("span", { class: "muted" }, `@${me.domain?.name || ""} →`),
+    h("input", { value: f.to, type: "email", "aria-label": "Forward to", placeholder: "you@gmail.com", oninput: (e) => (f.to = e.target.value.trim()) }),
+    h("button", { type: "button", class: "link", onclick: () => { forwards.splice(i, 1); renderForwards(); } }, "Remove"))));
+  $("fwd-add").disabled = forwards.length >= max;
+}
+$("fwd-add").addEventListener("click", () => { forwards.push({ local: "", to: auth.currentUser?.email || "" }); renderForwards(); });
+$("fwd-save").addEventListener("click", async () => {
+  $("email-err").textContent = $("email-ok").textContent = "";
+  try { await api("/email", { forwards }); $("email-ok").textContent = "Saved."; } catch (err) { $("email-err").textContent = err.message; }
+});
+
+// ---------- render ----------
+function render() {
+  if (!me) return;
+  const hasProfile = Boolean(me.profile?.business);
+  const editing = !hasProfile || profileEditing;
+  $("profile-form").hidden = !editing;
+  $("profile-done").hidden = editing;
+  $("profile-edit").hidden = editing;
+  if (editing) fillProfile();
+  $("s-site").hidden = !hasProfile;
+
+  const paid = Boolean(me.plan?.paid);
+  const free = cfg?.freeBuilds ?? 3;
+  const used = me.builds?.free || 0;
+  $("tries").textContent = paid ? "" : `${Math.max(0, free - used)} of ${free} free tries left`;
+  $("draft-note").textContent = draft?.source === "preview" ? "Started from your preview" : "";
+
+  const hasSite = Boolean(draft?.html);
+  const started = Boolean(me.plan?.subscriptionId);
+  $("s-live").hidden = !hasSite;
+  const open = Boolean(cfg?.ready?.payments && cfg?.ready?.hosting && cfg?.ready?.domains);
+  $("closed").hidden = started || open;
+  $("buy-form").hidden = started || !open;
+  $("progress").hidden = !started;
+  $("test-note").hidden = !cfg?.testMode;
+  if (!started && open && hasSite) {
+    renderPlans();
+    mountCard();
+    const f = $("buy-form");
+    if (!f.elements.cemail.value) f.elements.cemail.value = auth.currentUser?.email || "";
+    if (!f.elements.cphone.value) f.elements.cphone.value = me.profile?.phone || "";
+    if (!f.elements.ccity.value) f.elements.ccity.value = me.profile?.city || "";
+  }
+  if (started) renderProgress();
+  const settled = me.launch?.state === "live" || ["canceled", "paused"].includes(me.plan?.status);
+  keepPolling(started && !settled && me.launch?.state !== "needs_changes");
+
+  const failedFirst = me.launch?.state === "payment_failed" && !paid;
+  const manage = (paid && me.domain?.state === "registered") || failedFirst;
+  $("s-manage").hidden = !manage;
+  $("s-manage").querySelector(".card").hidden = failedFirst; // nothing to publish before the first payment
+  if (manage) {
+    const p = cfg?.plans?.[me.plan.id];
+    $("plan-name").textContent = p ? p.name : "Your plan";
+    const status = {
+      active: "Active", past_due: "Payment failed. Change your card to keep your site online.", canceling: `Canceled. Your site stays up until ${me.plan.cancelDate || "the end of the paid period"}.`,
+      canceled: "Ended. Your site is offline.", paused: "Paused. Your site is offline.", pending_payment: "Waiting for your first payment",
+    }[me.plan.status] || me.plan.status;
+    $("plan-line").textContent = `${p ? (me.plan.billing === "yearly" ? `${money(p.yearly)} a year` : `${money(p.monthly)} a month`) : ""} · ${status} · card ending ${me.plan.cardLast4 || "—"}`;
+    $("cancel").hidden = !["active", "past_due"].includes(me.plan.status);
+    const changed = draft?.hash && me.live?.hash && draft.hash !== me.live.hash;
+    $("publish").disabled = !changed || me.live?.state !== "live";
+    $("publish-note").textContent = changed ? "You have changes that aren't live yet." : "Your live site matches the preview. Ask for changes above, then publish them here.";
+    $("email-box").hidden = !p?.emails || failedFirst;
+    if (p?.emails && !failedFirst) renderForwards();
+  }
+}
+</script>
+</body>
+</html>

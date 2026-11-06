@@ -70,6 +70,11 @@ label.check input{width:18px;height:18px;accent-color:var(--salsa)}
 .leads .acts .dev{color:var(--ink-2);font-size:.85rem;margin-left:auto}
 .leads li.done .what{text-decoration:line-through;text-decoration-thickness:2px}
 h2 .count{color:var(--salsa)}
+.setup{margin-top:1rem;display:grid;gap:.7rem;padding:1.1rem}
+.setup .acts,.feed .acts{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.feed .acts{grid-column:1/-1;margin-top:.35rem}
+.feed .acts a{font-weight:800;color:var(--ink)}
+.pill.warn{color:#9A5B00}
 .pill{display:inline-block;font-size:.75rem;font-weight:800;border-radius:999px;padding:.05rem .5rem;margin-left:.35rem;vertical-align:.1em;border:1.5px solid currentColor}
 .pill.ok{color:var(--ok)}
 .pill.bad{color:var(--salsa)}
@@ -127,6 +132,17 @@ dialog .sum{color:var(--ink-2);font-weight:600}
       <label class="check"><input type="checkbox" id="show-done"> Show done</label>
     </div>
     <ol class="feed leads" id="leads" aria-live="polite"></ol>
+
+    <div class="row sec"><h2>Customers <span class="count" id="cust-count"></span></h2><span class="muted" id="cust-note"></span></div>
+    <ol class="feed" id="customers" aria-live="polite"></ol>
+    <div class="card setup" id="setup">
+      <p><b>Self-serve sign-ups</b> at <a href="/app/">webburrito.com/app/</a>: <span id="setup-state">checking…</span></p>
+      <div class="acts">
+        <button type="button" class="ghost" id="setup-square">Create Square plans</button>
+        <button type="button" class="ghost" id="setup-hosting">Set up site hosting</button>
+      </div>
+      <p class="err" id="setup-err" role="alert"></p>
+    </div>
 
     <div class="row sec"><h2>Preview opens</h2></div>
     <div class="tiles">
@@ -329,6 +345,8 @@ onAuthStateChanged(auth, async (user) => {
   showView("v-dash");
   start();
   syncDevice();
+  renderSetup();
+  appApi("/admin/sweep").catch(() => {}); // takes sites offline after the grace period for failed payments
 });
 $("me").addEventListener("change", (e) => { setMe(e.target.checked); syncDevice(); });
 
@@ -402,11 +420,85 @@ function start() {
       recent = snap.docs.map((d) => d.data());
       renderFeed();
     }, showError),
+    onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(200)), (snap) => {
+      customers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderCustomers();
+    }, (e) => $("customers").replaceChildren(h("li", null, h("span", { class: "empty" }, `Couldn't load customers (${e.code || e.message}).`)))),
     onSnapshot(query(collection(db, "leads"), orderBy("createdAt", "desc"), limit(200)), (snap) => {
       leads = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       renderLeads();
     }, (e) => $("leads").replaceChildren(h("li", null, h("span", { class: "empty" }, `Couldn't load requests (${e.code || e.message}).`)))),
   );
+}
+
+// ---------- customers (webburrito.com/app/) ----------
+async function appApi(path, body = {}) {
+  const token = await auth.currentUser.getIdToken();
+  const r = await fetch(`/api/app${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ...body, _auth: token }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.ok === false) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+let customers = [];
+const LAUNCH = {
+  live: ["ok", "live"], waiting_payment: ["", "waiting for payment"], domain: ["", "buying domain"], domain_pending: ["", "domain pending"],
+  checking: ["", "checking site"], publishing: ["", "publishing"], needs_changes: ["warn", "customer must fix site"],
+  needs_domain: ["bad", "needs a new domain"], needs_attention: ["bad", "needs you"],
+};
+function renderCustomers() {
+  const paying = customers.filter((c) => c.plan?.paid && ["active", "past_due", "canceling"].includes(c.plan?.status));
+  $("cust-count").textContent = customers.length ? `(${paying.length} paying)` : "";
+  $("cust-note").textContent = customers.length ? `${customers.length} signed up` : "";
+  if (!customers.length) {
+    $("customers").replaceChildren(h("li", null, h("span", { class: "empty" }, "No sign-ups yet. Customers appear here when they sign in at webburrito.com/app/.")));
+    return;
+  }
+  $("customers").replaceChildren(...customers.slice(0, 100).map((c) => {
+    const [tone, label] = LAUNCH[c.launch?.state] || ["", c.launch?.state || (c.profile ? "building" : "just signed up")];
+    const site = c.domain?.name && c.live?.state === "live" ? `https://${c.domain.name}/` : null;
+    return h("li", null,
+      h("span", { class: "what" }, c.profile?.business || c.email || c.id,
+        c.plan?.id ? h("span", { class: "pill" }, `${c.plan.id} ${c.plan.billing || ""}`) : null,
+        c.plan?.status && c.plan.status !== "active" ? h("span", { class: "pill bad" }, c.plan.status) : null,
+        h("span", { class: `pill ${tone}`.trim() }, label)),
+      h("span", { class: "when" }, ago(c.createdAt)),
+      h("span", { class: "meta" }, [c.email, c.profile?.city, c.domain?.name, c.claimedSlug ? `from preview ${c.claimedSlug}` : null,
+        c.builds?.free ? `${c.builds.free} free tries used` : null].filter(Boolean).join(" · ")),
+      c.launch?.error || c.domain?.error ? h("span", { class: "meta", style: "color:var(--salsa)" }, c.launch?.detail || c.launch?.error || c.domain?.error) : null,
+      h("span", { class: "acts" },
+        site ? h("a", { href: site, target: "_blank", rel: "noopener" }, "Open site") : null,
+        c.plan?.subscriptionId && c.launch?.state !== "live" ? h("button", { type: "button", class: "ghost", onclick: (e) => act(e, "/admin/retry", c.id) }, "Retry launch") : null,
+        site ? h("button", { type: "button", class: "ghost", onclick: (e) => confirm(`Take ${c.domain.name} offline?`) && act(e, "/admin/offline", c.id) }, "Take offline") : null,
+      ));
+  }));
+}
+async function act(e, path, uid) {
+  const b = e.currentTarget;
+  b.disabled = true;
+  try { const r = await appApi(path, { uid }); b.textContent = r.state ? `→ ${r.state}` : "Done"; }
+  catch (err) { b.disabled = false; alert(`Didn't work: ${err.message}`); }
+}
+async function renderSetup() {
+  try {
+    const c = await fetch("/api/app/config").then((r) => r.json());
+    const missing = [!c.ready.payments && "Square plans (and SQUARE_APPLICATION_ID)", !c.ready.hosting && "site hosting", !c.ready.domains && "CLOUDFLARE_ACCOUNT_ID"].filter(Boolean);
+    $("setup-state").textContent = missing.length ? `not open yet. Still needed: ${missing.join(", ")}. See README, "Customer platform".` : `open (${c.square.environment === "production" ? "real payments" : "Square sandbox: test cards only"}).`;
+    $("setup-square").hidden = c.ready.payments;
+    $("setup-hosting").hidden = c.ready.hosting;
+  } catch {
+    $("setup-state").textContent = "the platform isn't deployed yet.";
+  }
+}
+for (const [id, path] of [["setup-square", "/admin/setup-square"], ["setup-hosting", "/admin/setup-hosting"]]) {
+  $(id).addEventListener("click", async (e) => {
+    $("setup-err").textContent = "";
+    e.currentTarget.disabled = true;
+    try { await appApi(path); await renderSetup(); } catch (err) { $("setup-err").textContent = err.message; e.currentTarget.disabled = false; }
+  });
 }
 
 // ---------- free preview requests (home page form) ----------
@@ -527,7 +619,7 @@ function openDetail(slug) {
 $("d-close").addEventListener("click", () => $("detail").close());
 $("detail").addEventListener("close", () => { stopDetail?.(); stopDetail = null; });
 $("detail").addEventListener("click", (e) => { if (e.target === $("detail")) $("detail").close(); });
-setInterval(() => { renderFeed(); renderTable(); renderLeads(); }, 60e3); // keep "5 min ago" fresh
+setInterval(() => { renderFeed(); renderTable(); renderLeads(); renderCustomers(); }, 60e3); // keep "5 min ago" fresh
 </script>
 </body>
 </html>

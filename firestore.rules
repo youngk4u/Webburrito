@@ -55,6 +55,17 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // Platform settings written by the `app` function (Square plan ids, hosting setup) and
+    // daily usage counters. Admins can read them; nobody can change them from the browser.
+    match /config/{doc} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /usage/{day} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Customer accounts (ready for the customer login). A signed-in customer can
     // read their own record and everything under it; only admins and Cloud
     // Functions write to it, so customers can't change their own plan or invoices.

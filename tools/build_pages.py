@@ -343,6 +343,34 @@ page = head(g["title"], g["desc"], path, ld, og_type="article") + f"""<section c
 {cta_band()}""" + tail()
 write(path, page)
 
+# ---------- terms + privacy ----------
+LEGAL = [
+    ("terms", "Terms of service", "The terms for building and running your website with Web Burrito: plans, payments, the 14-day money back, cancelling and your domain.", "legal_terms.html"),
+    ("privacy", "Privacy policy", "What Web Burrito collects, why, and who helps us run the service.", "legal_privacy.html"),
+]
+for slug, h1, desc, src in LEGAL:
+    path = f"/{slug}/"
+    trail = [("Home", "/"), (h1, path)]
+    body = open(os.path.join(ROOT, "tools", src), encoding="utf-8").read()
+    page = head(f"{h1} | Web Burrito", desc, path, [ORG, crumbs_ld(trail)]) + f"""<section class="hero sub">
+  <div class="wrap" style="grid-template-columns:1fr">
+    <div>
+      {crumbs(trail)}
+      <h1>{H.escape(h1)}</h1>
+    </div>
+  </div>
+</section>
+<section class="band" style="padding-top:3rem">
+  <div class="wrap">
+    <article class="prose">
+      <p class="meta">Last updated {date.fromisoformat(TODAY).strftime('%B %-d, %Y')}</p>
+{body}
+    </article>
+  </div>
+</section>
+""" + tail()
+    write(path, page)
+
 # ---------- 404 ----------
 page = head("Page not found | Web Burrito", "That page isn't on the menu.", "/404.html", [ORG]).replace(
     '<link rel="canonical" href="https://webburrito.com/404.html">\n', '<meta name="robots" content="noindex">\n') + f"""<section class="hero sub">
@@ -359,7 +387,7 @@ page = head("Page not found | Web Burrito", "That page isn't on the menu.", "/40
 open(os.path.join(ROOT, "404.html"), "w", encoding="utf-8").write(page)
 
 # ---------- sitemap + robots ----------
-urls = ["/", "/industries/"] + [f"/{o['slug']}/" for o in INDUSTRIES] + [f"/{g['slug']}/"]
+urls = ["/", "/industries/"] + [f"/{o['slug']}/" for o in INDUSTRIES] + [f"/{g['slug']}/"] + [f"/{l[0]}/" for l in LEGAL]
 sm = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
 for u in urls:
     sm.append(f"  <url><loc>{SITE}{u}</loc><lastmod>{TODAY}</lastmod></url>")
