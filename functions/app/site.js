@@ -4,6 +4,7 @@
 import { parseDocument, DomUtils } from "htmlparser2";
 import render from "dom-serializer";
 import { decodeHTML } from "entities";
+import { parseSocial, socialLink } from "./pure.js";
 
 const { findAll, findOne, removeElement, replaceElement, getAttributeValue, getInnerHTML } = DomUtils;
 // Raw mode keeps every byte we don't touch exactly as it was.
@@ -99,11 +100,14 @@ export function livePreview(html) {
     if (/^[\s+\-−–×✕<>‹›«»←→↑↓]*$/.test(t) || (t.length < 30 && ACTION.test(t))) removeElement(el);
   }
 
+  // Social pages the preview links to (Web Burrito found them on the business's listings).
+  const social = parseSocial(all((e) => e.name === "a").map((a) => getAttributeValue(a, "href") || "").filter((h) => /^https?:\/\//i.test(h) && socialLink(h))).list;
   const facts = {
     business: business.slice(0, 120),
     phone: phone || "",
     address: (parts ? `${parts.street}, ${parts.city}, ${parts.state} ${parts.zip}` : address).slice(0, 200),
     city: parts?.city || "",
+    ...(social.length ? { social } : {}),
   };
   return { html: out(doc), facts };
 }
@@ -129,6 +133,7 @@ export function listingLinesOf(html) {
 export function fillProfile(profile, facts, fallbackName = "") {
   const p = { ...(profile || {}) };
   for (const k of ["business", "phone", "address", "city"]) if (!p[k] && facts?.[k]) p[k] = facts[k];
+  if (!p.social?.length && facts?.social?.length) p.social = facts.social;
   if (!p.business && fallbackName) p.business = fallbackName;
   return p;
 }
@@ -178,6 +183,8 @@ export function jsonLd(profile, url) {
     address: a
       ? { "@type": "PostalAddress", streetAddress: a.street, addressLocality: a.city, addressRegion: a.state, postalCode: a.zip, addressCountry: "US" }
       : p.city ? { "@type": "PostalAddress", addressLocality: p.city, addressCountry: "US" } : undefined,
+    // Their pages elsewhere, so Google ties them to this business (rebuilt links only: see parseSocial).
+    sameAs: (() => { const urls = parseSocial(p.social).list.map((s) => s.url); return urls.length ? urls : undefined; })(),
   };
   return JSON.stringify(data).replace(/</g, "\\u003c");
 }

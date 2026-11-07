@@ -34,8 +34,149 @@ export function parseProfile(b) {
     about: text(b.about, 2000),
     services: text(b.services, 2000),
     language: text(b.language, 40),
+    social: parseSocial(b.social).list,
   };
   return p.business ? p : null;
+}
+
+// ---------- social media pages ----------
+// Only pages on these sites are kept, rebuilt from their parts (never the text as typed), so a
+// link put on the customer's site can only ever go to that business's own page there.
+const RESERVED = {
+  ig: new Set(["p", "reel", "reels", "explore", "accounts", "stories", "tv", "direct", "about", "legal", "developer"]),
+  fb: new Set(["login", "sharer", "share", "dialog", "plugins", "watch", "reel", "photo.php", "story.php", "permalink.php", "home.php", "marketplace", "gaming", "help", "policies", "privacy", "settings", "events", "groups"]),
+  x: new Set(["home", "explore", "search", "i", "intent", "share", "login", "settings", "messages", "notifications"]),
+};
+const SOCIAL_SITES = [
+  ["Instagram", /^(instagram\.com|instagr\.am)$/, (path) => {
+    const m = /^\/([A-Za-z0-9._]{1,30})\/?$/.exec(path);
+    return m && !RESERVED.ig.has(m[1].toLowerCase()) && { url: `https://www.instagram.com/${m[1]}/`, handle: `@${m[1]}` };
+  }],
+  ["Facebook", /^(facebook\.com|fb\.com)$/, (path, q) => {
+    if (/^\/profile\.php\/?$/.test(path)) return /^\d{5,20}$/.test(q.get("id") || "") && { url: `https://www.facebook.com/profile.php?id=${q.get("id")}` };
+    const m = /^\/((?:pages|p|people)\/[A-Za-z0-9.%-]{1,100}(?:\/\d{5,20})?|[A-Za-z0-9.]{2,80})\/?$/.exec(path);
+    return m && !RESERVED.fb.has(m[1].toLowerCase()) && { url: `https://www.facebook.com/${m[1]}` };
+  }],
+  ["TikTok", /^tiktok\.com$/, (path) => {
+    const m = /^\/@([A-Za-z0-9._]{2,24})\/?$/.exec(path);
+    return m && { url: `https://www.tiktok.com/@${m[1]}`, handle: `@${m[1]}` };
+  }],
+  ["Yelp", /^yelp\.com$/, (path) => {
+    const m = /^\/biz\/([A-Za-z0-9%-]{2,150})\/?$/.exec(path);
+    return m && { url: `https://www.yelp.com/biz/${m[1]}` };
+  }],
+  ["YouTube", /^youtube\.com$/, (path) => {
+    const m = /^\/(@[A-Za-z0-9._-]{3,30}|channel\/[A-Za-z0-9_-]{10,40}|c\/[A-Za-z0-9._-]{1,100})\/?$/.exec(path);
+    return m && { url: `https://www.youtube.com/${m[1]}`, ...(m[1].startsWith("@") ? { handle: m[1] } : {}) };
+  }],
+  ["X", /^(x\.com|twitter\.com)$/, (path) => {
+    const m = /^\/([A-Za-z0-9_]{1,15})\/?$/.exec(path);
+    return m && !RESERVED.x.has(m[1].toLowerCase()) && { url: `https://x.com/${m[1]}`, handle: `@${m[1]}` };
+  }],
+  ["Threads", /^threads\.(net|com)$/, (path) => {
+    const m = /^\/@([A-Za-z0-9._]{1,30})\/?$/.exec(path);
+    return m && { url: `https://www.threads.com/@${m[1]}`, handle: `@${m[1]}` };
+  }],
+  ["LinkedIn", /^linkedin\.com$/, (path) => {
+    const m = /^\/company\/([A-Za-z0-9-]{2,100})\/?$/.exec(path);
+    return m && { url: `https://www.linkedin.com/company/${m[1]}/` };
+  }],
+];
+
+/** One page on a known social site ({ site, url, handle? }), from a link or an Instagram @handle; else null. */
+export function socialLink(raw) {
+  const t = String(raw || "").trim();
+  if (/^@[A-Za-z0-9._]{1,30}$/.test(t)) return socialLink(`instagram.com/${t.slice(1)}`);
+  let u;
+  try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`); } catch { return null; }
+  if (!["http:", "https:"].includes(u.protocol) || u.username || u.password || u.port) return null;
+  const host = u.hostname.toLowerCase().replace(/^(www|m|mobile|web)\./, "");
+  for (const [site, hosts, pick] of SOCIAL_SITES) {
+    if (!hosts.test(host)) continue;
+    const r = pick(u.pathname, u.searchParams);
+    return r ? { site, ...r } : null;
+  }
+  return null;
+}
+
+/**
+ * Social pages from what the owner typed (links or @handles, separated by commas, spaces or new
+ * lines) or a saved list. Returns { list, bad }: up to 5 pages, and what couldn't be used.
+ */
+export function parseSocial(v) {
+  const items = Array.isArray(v) ? v.map((x) => (typeof x === "string" ? x : x?.url)) : typeof v === "string" ? v.split(/[\s,;]+/) : [];
+  const list = [];
+  const bad = [];
+  for (const raw of items.filter((x) => typeof x === "string" && x.trim()).slice(0, 20)) {
+    const s = socialLink(raw);
+    if (!s) bad.push(raw.trim().slice(0, 60));
+    else if (list.length < 5 && !list.some((x) => x.url === s.url)) list.push(s);
+  }
+  return { list, bad };
+}
+
+/**
+ * How much of a new page is written, from its length so far (the build's progress bar): most
+ * pages are around 26,000 characters, so that's 90%; longer ones creep on toward 97%.
+ */
+const PAGE_CHARS = 26_000;
+export const pageShare = (chars) => Math.round(100 * Math.min(0.97, chars < PAGE_CHARS
+  ? 0.05 + 0.85 * (Math.max(0, chars) / PAGE_CHARS)
+  : 0.9 + 0.07 * (1 - Math.exp(-(chars - PAGE_CHARS) / PAGE_CHARS)))) / 100;
+
+// ---------- streamed Claude answers ----------
+/**
+ * Reads a streamed Claude answer (server-sent events) into the shape of a whole one:
+ * { content, stop, usage }. `onDelta({ chars, block })` runs whenever more arrives: chars is how
+ * much has been written so far, block the part being written ({ type, name }). Tool inputs come
+ * in one finished value at a time, so they jump rather than grow.
+ */
+export async function readMessageStream(chunks, onDelta = () => {}) {
+  const dec = new TextDecoder();
+  const blocks = [];
+  let buf = "";
+  let stop = null;
+  let usage = {};
+  let chars = 0;
+  const handle = (data) => {
+    let ev;
+    try { ev = JSON.parse(data); } catch { return; }
+    if (ev.type === "message_start") usage = { ...(ev.message?.usage || {}) };
+    else if (ev.type === "content_block_start") {
+      const b = { ...(ev.content_block || {}), partial: "" };
+      if (b.type === "text") b.text = b.text || "";
+      blocks[ev.index] = b;
+      onDelta({ chars, block: b });
+    } else if (ev.type === "content_block_delta") {
+      const b = blocks[ev.index];
+      const d = ev.delta || {};
+      if (!b) return;
+      if (d.type === "text_delta" && typeof d.text === "string") { b.text += d.text; chars += d.text.length; }
+      else if (d.type === "input_json_delta" && typeof d.partial_json === "string") { b.partial += d.partial_json; chars += d.partial_json.length; }
+      else return;
+      onDelta({ chars, block: b });
+    } else if (ev.type === "content_block_stop") {
+      const b = blocks[ev.index];
+      if (b && b.partial) { try { b.input = JSON.parse(b.partial); } catch { b.input = {}; } }
+    } else if (ev.type === "message_delta") {
+      if (ev.delta?.stop_reason) stop = ev.delta.stop_reason;
+      if (ev.usage) usage = { ...usage, ...ev.usage };
+    } else if (ev.type === "error") {
+      throw Object.assign(new Error(ev.error?.message || "The answer stopped partway."), { streamError: ev.error?.type || "error" });
+    }
+  };
+  const dataOf = (raw) => raw.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).replace(/^ /, "")).join("\n");
+  for await (const chunk of chunks) {
+    buf = (buf + (typeof chunk === "string" ? chunk : dec.decode(chunk, { stream: true }))).replace(/\r\n?/g, "\n");
+    for (let i = buf.indexOf("\n\n"); i >= 0; i = buf.indexOf("\n\n")) {
+      const data = dataOf(buf.slice(0, i));
+      buf = buf.slice(i + 2);
+      if (data) handle(data);
+    }
+  }
+  if (dataOf(buf)) handle(dataOf(buf));
+  const content = blocks.filter(Boolean).map(({ partial, ...b }) => b);
+  return { content, stop, usage };
 }
 
 const EMAIL = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[A-Za-z]{2,}$/;

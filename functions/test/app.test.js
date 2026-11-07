@@ -138,3 +138,96 @@ test("look-alike domains are refused, ordinary shop names aren't", () => {
     assert.equal(riskyDomain(d), false, d);
   }
 });
+
+// ---------- social media pages ----------
+import { parseSocial, socialLink, readMessageStream, pageShare } from "../app/pure.js";
+
+test("social pages: links and @handles become clean links on known sites", () => {
+  const { list, bad } = parseSocial("@rosasbakery, https://m.facebook.com/RosasBakery?ref=page_internal\ntiktok.com/@rosas_bakery yelp.com/biz/rosas-bakery-los-angeles");
+  assert.deepEqual(bad, []);
+  assert.deepEqual(list, [
+    { site: "Instagram", url: "https://www.instagram.com/rosasbakery/", handle: "@rosasbakery" },
+    { site: "Facebook", url: "https://www.facebook.com/RosasBakery" },
+    { site: "TikTok", url: "https://www.tiktok.com/@rosas_bakery", handle: "@rosas_bakery" },
+    { site: "Yelp", url: "https://www.yelp.com/biz/rosas-bakery-los-angeles" },
+  ]);
+  assert.equal(socialLink("facebook.com/profile.php?id=100063625123456").url, "https://www.facebook.com/profile.php?id=100063625123456");
+  assert.equal(socialLink("http://twitter.com/rosas").url, "https://x.com/rosas");
+  assert.equal(socialLink("threads.net/@rosas").url, "https://www.threads.com/@rosas");
+});
+
+test("social pages: anything else is refused, never passed through", () => {
+  for (const t of ["rosasbakery", "javascript:alert(1)", "https://evil.example/instagram.com/x", "https://instagram.com.evil.example/x",
+    "instagram.com/p/C1x2", "facebook.com/share/1AbCd", "x.com/home", "https://user:pw@instagram.com/x", "instagram.com:8080/x", "data:text/html,hi",
+    'instagram.com/a"onmouseover="x']) {
+    assert.equal(socialLink(t), null, t);
+  }
+  const { list, bad } = parseSocial("@ok, nope.example/page");
+  assert.equal(list.length, 1);
+  assert.deepEqual(bad, ["nope.example/page"]);
+});
+
+test("social pages: saved lists parse again, duplicates go, at most 5", () => {
+  const saved = parseSocial("@a1, @a2, @a3, @a4, @a5, @a6, instagram.com/a1").list;
+  assert.equal(saved.length, 5);
+  assert.deepEqual(parseSocial(saved).list, saved);
+  assert.deepEqual(parseProfile({ business: "X", social: saved }).social, saved);
+  assert.deepEqual(parseProfile({ business: "X" }).social, []);
+  assert.deepEqual(parseProfile({ business: "X", social: { url: "x" } }).social, []);
+});
+
+// A stream of server-sent events, cut into chunks at awkward places (mid-line, mid-character).
+function sse(events, cut = 7) {
+  const s = events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+  const bytes = new TextEncoder().encode(s);
+  return (async function* () { for (let i = 0; i < bytes.length; i += cut) yield bytes.slice(i, i + cut); })();
+}
+
+test("a streamed answer reads the same as a whole one, and reports progress", async () => {
+  const seen = [];
+  const out = await readMessageStream(sse([
+    { type: "message_start", message: { usage: { input_tokens: 25, output_tokens: 1 } } },
+    { type: "ping" },
+    { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "<!doctype html><p>Pan dulce ¡rico! " } },
+    { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "y café</p>" } },
+    { type: "content_block_stop", index: 0 },
+    { type: "content_block_start", index: 1, content_block: { type: "tool_use", id: "t1", name: "edit_page", input: {} } },
+    { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"edits": [{"find": "a", ' } },
+    { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '"replace": "b"}]}' } },
+    { type: "content_block_stop", index: 1 },
+    { type: "some_new_event", whatever: true },
+    { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 42 } },
+    { type: "message_stop" },
+  ]), (p) => seen.push([p.chars, p.block.type, p.block.name || null]));
+  assert.equal(out.stop, "tool_use");
+  assert.deepEqual(out.usage, { input_tokens: 25, output_tokens: 42 });
+  assert.equal(out.content[0].text, "<!doctype html><p>Pan dulce ¡rico! y café</p>");
+  assert.deepEqual(out.content[1], { type: "tool_use", id: "t1", name: "edit_page", input: { edits: [{ find: "a", replace: "b" }] } });
+  assert.deepEqual(seen.map((s) => s[1]), ["text", "text", "text", "tool_use", "tool_use", "tool_use"]);
+  assert.ok(seen.at(-1)[0] > seen[1][0], "chars grow");
+  assert.equal(seen[3][2], "edit_page");
+});
+
+test("an error partway through a stream is thrown; a cut-off tool input reads as empty", async () => {
+  await assert.rejects(readMessageStream(sse([
+    { type: "message_start", message: { usage: {} } },
+    { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    { type: "error", error: { type: "overloaded_error", message: "Overloaded" } },
+  ])), (e) => e.streamError === "overloaded_error");
+  const cut = await readMessageStream(sse([
+    { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "t", name: "rewrite_page", input: {} } },
+    { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"html": "<!doctype' } },
+    { type: "content_block_stop", index: 0 },
+    { type: "message_delta", delta: { stop_reason: "max_tokens" } },
+  ], 3));
+  assert.equal(cut.stop, "max_tokens");
+  assert.deepEqual(cut.content[0].input, {});
+});
+
+test("the progress share of a new page grows and never reaches 100%", () => {
+  const steps = [0, 1000, 13000, 26000, 40000, 1e7].map(pageShare);
+  assert.deepEqual(steps.slice(0, 4), [0.05, 0.08, 0.48, 0.9]);
+  for (let i = 1; i < steps.length; i++) assert.ok(steps[i] >= steps[i - 1]);
+  assert.equal(steps.at(-1), 0.97);
+});

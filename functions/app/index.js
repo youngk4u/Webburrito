@@ -38,7 +38,7 @@ import {
   PLATFORM_ON,
 } from "./config.js";
 import {
-  PLANS, BILLING, text, parseProfile, parseContact, parseDomain, domainBuyable, squareSignatureOk, cleanHtml, sanitizeHtml,
+  PLANS, BILLING, text, parseProfile, parseSocial, pageShare, parseContact, parseDomain, domainBuyable, squareSignatureOk, cleanHtml, sanitizeHtml,
   pageFits, monthKey, dayKey, pageHash, parseForwards, registrarPhone, riskyDomain, shortHash,
 } from "./pure.js";
 import { square, cf, idem, ApiError } from "./clients.js";
@@ -175,6 +175,9 @@ async function publicConfig() {
     square: { applicationId: SQUARE_APPLICATION_ID.value(), locationId: SQUARE_LOCATION_ID.value(), environment: env() },
     plans: PLANS,
     freeBuilds: FREE_BUILDS.value(),
+    // What this server can do, so a newer /app/ page (published on every push) doesn't offer
+    // anything before the server that handles it has been deployed.
+    features: ["social"],
     testMode: !isLive(),
     ready: {
       payments: Boolean(cfg.plans?.[env()] && SQUARE_APPLICATION_ID.value()),
@@ -205,6 +208,8 @@ const ROUTES = {
     await rateLimit(user.uid, "profile", 60, 3600);
     const profile = parseProfile(body.profile);
     if (!profile) throw new UserError(400, "Add your business name.");
+    const { bad } = parseSocial(body.profile.social);
+    if (bad.length) throw new UserError(400, `Couldn't use “${bad[0]}” under Social media. Paste the link to your Instagram, Facebook, TikTok, Yelp, YouTube or X page (like instagram.com/yourshop), or your Instagram @handle.`);
     await userRef(user.uid).set({ profile, profileAt: FieldValue.serverTimestamp() }, { merge: true });
     res.json({ ok: true });
   },
@@ -248,16 +253,16 @@ const ROUTES = {
     const draft = (await draftRef(user.uid).get()).data();
     if (draft?.html && draft.html.length > 150_000) throw new UserError(413, "Your page is too big to change. Undo the last change, or start fresh.");
     const reserve = await reserveBuild(user.uid);
+    const report = buildReporter(user.uid, draft?.html ? "change" : "new", reserve.run);
     try {
       const msgs = await userRef(user.uid).collection("messages").orderBy("at", "desc").limit(30).get();
       const history = msgs.docs.filter((d) => d.get("role") === "owner").slice(0, 8).map((d) => d.get("text")).filter(Boolean).reverse();
       await log(user.uid, "owner", request || "Make our website.");
-      const out = await buildSite({ profile: u.profile, current: draft?.html || null, request, history });
+      const out = await buildSite({ profile: u.profile, current: draft?.html || null, request, history, onProgress: report.onProgress });
       await saveDraft(user.uid, out.html, "ai", draft);
       await log(user.uid, "builder", draft?.html ? "Done. Your changes are in the preview." : "Here's your site. Ask for any changes.", {
         tokens: (out.usage.input_tokens || 0) + (out.usage.output_tokens || 0),
       });
-      res.json({ ok: true, left: reserve.left });
     } catch (err) {
       // Give the try back only when Claude refused the request outright (nothing was spent).
       if (err instanceof ApiError && err.status >= 400) await refundBuild(user.uid, reserve);
@@ -266,8 +271,11 @@ const ROUTES = {
       logger.error("build failed", { uid: user.uid, err: String(err) });
       throw new UserError(502, msg);
     } finally {
+      // Before answering, so the page hears the build is over as soon as its request returns.
+      await report.stop();
       await userRef(user.uid).set({ builds: { running: null } }, { merge: true });
     }
+    res.json({ ok: true, left: reserve.left });
   },
 
   async "/undo"(user, body, res) {
@@ -610,6 +618,40 @@ async function openPreview(slug, { key, passcode }) {
   return page2;
 }
 
+/**
+ * What the progress bar on /app/ shows while a build runs, in its own small document
+ * (users/{uid}/site/progress): which build (`run`, its start time, as in users/{uid}.builds.running),
+ * the kind, the step (reading, writing, editing, redesigning) and, while a new page is being written,
+ * how much is done. Saved in order, when the step changes and at most every 3 seconds within a step;
+ * the page moves the bar smoothly in between. Nothing is written as the build ends: the page goes by
+ * builds.running, and a progress document from an earlier run is ignored.
+ */
+function buildReporter(uid, kind, run) {
+  const ref = userRef(uid).collection("site").doc("progress");
+  let chain = Promise.resolve();
+  let phase = null;
+  let last = 0;
+  let stopped = false;
+  const step = (next, progress = null) => {
+    phase = next;
+    last = Date.now();
+    if (stopped) return;
+    chain = chain.then(() => ref.set({ run, kind, phase: next, progress })).catch(() => {});
+  };
+  step("reading");
+  return {
+    onProgress({ chars, block }) {
+      const next = block?.type === "text" ? "writing" : block?.name === "rewrite_page" ? "redesigning" : block?.name === "edit_page" ? "editing" : phase;
+      if (next === phase && Date.now() - last < 3000) return;
+      step(next, next === "writing" ? pageShare(chars) : null);
+    },
+    async stop() {
+      stopped = true;
+      await chain;
+    },
+  };
+}
+
 async function saveDraft(uid, html, source, previous) {
   const clean = sanitizeHtml(html);
   if (!pageFits(clean)) throw new UserError(413, "That page is too big. Ask for a simpler page.");
@@ -676,16 +718,18 @@ async function reserveBuild(uid) {
       const used = u.builds?.month === month ? u.builds.monthCount || 0 : 0;
       const limit = PLANS[u.plan.id]?.editsPerMonth || 20;
       if (used >= limit) throw new UserError(429, `You've used this month's ${limit} AI changes. Text (310) 279-8278 for more.`);
-      tx.set(ref, { builds: { month, monthCount: used + 1, running: new Date() } }, { merge: true });
-      return { kind: "month", left: limit - used - 1 };
+      const run = new Date();
+      tx.set(ref, { builds: { month, monthCount: used + 1, running: run } }, { merge: true });
+      return { kind: "month", left: limit - used - 1, run: run.getTime() };
     }
     const used = u.builds?.free || 0;
     const limit = FREE_BUILDS.value();
     if (used >= limit) throw new UserError(402, `You've used your ${limit} free tries. Pick a plan to keep building.`);
     if ((day.free || 0) >= FREE_BUILDS_PER_DAY_TOTAL.value()) throw new UserError(429, "The builder is very busy today. Try again tomorrow, or text (310) 279-8278.");
-    tx.set(ref, { builds: { free: used + 1, running: new Date() } }, { merge: true });
+    const run = new Date();
+    tx.set(ref, { builds: { free: used + 1, running: run } }, { merge: true });
     tx.set(usage, { free: FieldValue.increment(1) }, { merge: true });
-    return { kind: "free", left: limit - used - 1 };
+    return { kind: "free", left: limit - used - 1, run: run.getTime() };
   });
 }
 async function refundBuild(uid, reserve) {

@@ -2,6 +2,7 @@
 // Manager at runtime and are never logged or sent to the browser.
 
 import { randomUUID } from "node:crypto";
+import { readMessageStream } from "./pure.js";
 import {
   ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, SQUARE_ACCESS_TOKEN, CLOUDFLARE_API_TOKEN,
   CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_BASE_URL, squareBase,
@@ -33,21 +34,52 @@ async function call(service, url, init, timeoutMs) {
 }
 
 // ---------- Claude ----------
-export async function claude({ model, system, messages, maxTokens = 16000, timeoutMs = 280_000, tools, toolChoice }) {
-  const r = await call("anthropic", `${ANTHROPIC_BASE_URL.value()}/v1/messages`, {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY.value(),
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ model, system, messages, max_tokens: maxTokens, ...(tools ? { tools, tool_choice: toolChoice || { type: "auto" } } : {}) }),
-  }, timeoutMs);
-  if (!r.ok) throw new ApiError("anthropic", r.status, r.body?.error?.message || "request failed");
-  const content = r.body?.content || [];
-  const textOut = content.filter((c) => c.type === "text").map((c) => c.text).join("");
-  const toolUses = content.filter((c) => c.type === "tool_use").map((c) => ({ name: c.name, input: c.input || {} }));
-  return { text: textOut, tools: toolUses, stop: r.body?.stop_reason, usage: r.body?.usage || {} };
+/**
+ * One Claude answer: { text, tools, stop, usage }. With `onProgress`, the answer is streamed and
+ * onProgress({ chars, block }) hears how far it has got (the build's progress bar); otherwise it
+ * arrives whole.
+ */
+export async function claude({ model, system, messages, maxTokens = 16000, timeoutMs = 280_000, tools, toolChoice, onProgress }) {
+  const url = `${ANTHROPIC_BASE_URL.value()}/v1/messages`;
+  const headers = {
+    "x-api-key": ANTHROPIC_API_KEY.value(),
+    "anthropic-version": "2023-06-01",
+    "content-type": "application/json",
+  };
+  const body = { model, system, messages, max_tokens: maxTokens, ...(tools ? { tools, tool_choice: toolChoice || { type: "auto" } } : {}) };
+  let msg;
+  if (onProgress) msg = await streamed(url, headers, body, timeoutMs, onProgress);
+  else {
+    const r = await call("anthropic", url, { method: "POST", headers, body: JSON.stringify(body) }, timeoutMs);
+    if (!r.ok) throw new ApiError("anthropic", r.status, r.body?.error?.message || "request failed");
+    msg = { content: r.body?.content || [], stop: r.body?.stop_reason, usage: r.body?.usage || {} };
+  }
+  const textOut = msg.content.filter((c) => c.type === "text").map((c) => c.text).join("");
+  const toolUses = msg.content.filter((c) => c.type === "tool_use").map((c) => ({ name: c.name, input: c.input || {} }));
+  return { text: textOut, tools: toolUses, stop: msg.stop, usage: msg.usage || {} };
+}
+
+async function streamed(url, headers, body, timeoutMs, onProgress) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { method: "POST", headers, body: JSON.stringify({ ...body, stream: true }), signal: ctrl.signal });
+    if (!r.ok) {
+      const raw = await r.text();
+      let detail = "request failed";
+      try { detail = JSON.parse(raw)?.error?.message || detail; } catch {}
+      throw new ApiError("anthropic", r.status, detail);
+    }
+    return await readMessageStream(r.body, (p) => { try { onProgress(p); } catch {} });
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    // An error event partway through (like "overloaded"): the same as that error without streaming.
+    if (err.streamError) throw new ApiError("anthropic", err.streamError === "overloaded_error" ? 529 : 500, err.message);
+    throw new ApiError("anthropic", 0, err.name === "AbortError" ? "timed out" : String(err.message || err));
+  } finally {
+    clearTimeout(timer);
+    ctrl.abort(); // done either way: let go of the connection
+  }
 }
 
 // ---------- Square ----------

@@ -64,7 +64,7 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
 .done-mark{color:var(--ok);font-weight:800;font-size:.9rem}
 
 /* builder */
-.builder{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:1rem;align-items:start}
+.builder{display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,1fr);gap:1rem;align-items:start}
 @media (max-width:900px){.builder{grid-template-columns:1fr}}
 .frame{background:var(--card);border:2px solid var(--ink);border-radius:18px;overflow:hidden}
 .frame .tools{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .8rem;border-bottom:2px solid var(--line)}
@@ -72,19 +72,40 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
 .frame .tools .seg button{all:unset;cursor:pointer;padding:.35rem .9rem;font-weight:800;font-size:.85rem}
 .frame .tools .seg button[aria-pressed="true"]{background:var(--ink);color:var(--page)}
 .frame .tools .seg button:focus-visible{outline:3px solid var(--salsa);outline-offset:-3px}
-.frame .view{background:var(--soft);display:flex;justify-content:center}
-.frame iframe{border:0;width:100%;height:min(72vh,760px);background:#fff;display:block}
-.frame.phone iframe{width:390px;max-width:100%}
+.frame .tools #full{margin-left:auto}
+/* Computer: the page at a laptop's 1280 by 800, scaled down to the frame. Phone: 390 wide. */
+.frame .view{background:var(--soft);position:relative;overflow:hidden}
+.frame iframe{border:0;background:#fff;display:block}
+.frame:not(.phone) iframe{position:absolute;top:0;left:0;width:1280px;height:800px;transform-origin:0 0}
+.frame.phone .view{display:flex;justify-content:center}
+.frame.phone iframe{width:390px;max-width:100%;height:min(72vh,760px)}
+.frame-note{margin:0;padding:.55rem .9rem;border-top:2px solid var(--line);font-size:.9rem;font-weight:600}
+.frame.full{position:fixed;inset:0;z-index:40;border:0;border-radius:0;display:flex;flex-direction:column}
+.frame.full .view{flex:1}
+.frame.full.phone iframe{height:100%}
+html.preview-full{overflow:hidden}
+/* Building: a chunky bar that fills as the page is written. */
+.build-box{max-width:720px}
+.build-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.4rem 1rem}
+.build-head h3{font-family:"Bungee",Impact,sans-serif;font-weight:400;font-size:1.15rem;margin:0}
+.progress{height:18px;border:2px solid var(--ink);border-radius:999px;background:var(--soft);overflow:hidden}
+.progress > span{display:block;height:100%;width:0;background-color:var(--salsa);border-right:2px solid var(--ink);
+  background-image:repeating-linear-gradient(-45deg,rgba(255,255,255,.28) 0 8px,transparent 8px 16px);background-size:22.6px 22.6px;
+  transition:width .8s linear;animation:stripes .9s linear infinite}
+.progress[aria-valuenow="0"] > span{border-right:0}
+.progress.done > span{animation:none;background-image:none;background-color:var(--ok)}
+@keyframes stripes{to{background-position:22.6px 0}}
+@media (prefers-reduced-motion:reduce){.progress > span{transition:none;animation:none}}
+.build-step{font-weight:800}
 .empty-site{padding:3rem 1.5rem;text-align:center;color:var(--ink-2)}
 .chat{display:grid;gap:.8rem}
 .msgs{list-style:none;margin:0;padding:0;display:grid;gap:.5rem;max-height:46vh;overflow:auto}
 .msgs li{padding:.6rem .8rem;border-radius:14px;background:var(--soft);font-size:.95rem;white-space:pre-wrap;overflow-wrap:anywhere}
 .msgs li.owner{background:var(--ink);color:var(--page);justify-self:end;max-width:90%}
 .msgs li.failed{border:2px solid var(--salsa)}
-.working{display:flex;gap:.6rem;align-items:center;font-weight:700}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--salsa);animation:pulse 1s infinite alternate}
-@keyframes pulse{to{opacity:.25}}
-@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+.working{display:grid;gap:.45rem}
+.working .progress{height:14px}
+.suggest{justify-self:start;min-height:36px;font-size:.85rem;background:transparent;color:var(--ink)}
 
 /* plans */
 .plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
@@ -184,6 +205,7 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
           <label>Street address<span class="hint">Leave blank if customers don't visit you.</span><input name="address" maxlength="200" autocomplete="street-address"></label>
           <label>Business email<span class="hint">Optional</span><input name="email" type="email" maxlength="120"></label>
         </div>
+        <label id="social-field" hidden>Social media<span class="hint">Optional. Your Instagram, Facebook, TikTok or Yelp page: paste the links, or your Instagram @handle. We'll link them on your site.</span><input name="social" maxlength="600" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="@yourshop, facebook.com/yourshop"></label>
         <label>Hours<span class="hint">Like "Mon–Sat 7am–6pm, closed Sunday"</span><input name="hours" maxlength="400"></label>
         <label>Services or menu<span class="hint">What you sell, with prices if you want them shown.</span><textarea name="services" maxlength="2000"></textarea></label>
         <label>About you<span class="hint">How long you've been open, what you're known for, languages you speak.</span><textarea name="about" maxlength="2000"></textarea></label>
@@ -196,6 +218,13 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
     <section class="section" id="s-site" hidden>
       <div class="head"><span class="step">2</span><h2>Your site</h2><span class="muted small" id="tries"></span></div>
 
+      <div id="build-box" class="card stack build-box" hidden>
+        <div class="build-head"><h3 id="build-title">Building your site</h3><span class="muted small" id="build-time" aria-hidden="true"></span></div>
+        <div class="progress" id="build-bar" role="progressbar" aria-labelledby="build-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+        <p class="build-step" id="build-step" aria-live="polite"></p>
+        <p class="muted small" id="build-hint"></p>
+      </div>
+
       <div id="start" class="grid2">
         <form id="claim-form" class="card stack">
           <h3>Start from your preview</h3>
@@ -203,7 +232,6 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
           <label>Preview link<input id="claim-link" placeholder="webburrito.com/your-shop" required></label>
           <label>Passcode <span class="muted small">(not needed with your personal link)</span><input id="claim-code" inputmode="numeric" autocomplete="off"></label>
           <div><button type="submit" id="claim-go">Use this design</button></div>
-          <p class="muted small" id="claim-note" role="status"></p>
           <p class="err" id="claim-err" role="alert"></p>
         </form>
         <form id="new-form" class="card stack">
@@ -219,18 +247,24 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
         <div class="frame" id="frame">
           <div class="tools">
             <span class="seg" role="group" aria-label="Preview size">
-              <button type="button" id="as-phone" aria-pressed="false">Phone</button>
               <button type="button" id="as-desk" aria-pressed="true">Computer</button>
+              <button type="button" id="as-phone" aria-pressed="false">Phone</button>
             </span>
             <span class="muted small" id="draft-note"></span>
+            <button type="button" class="ghost" id="full" aria-pressed="false">Full screen</button>
           </div>
-          <div class="view"><iframe id="preview" title="Your site" sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe></div>
+          <div class="view" id="view"><iframe id="preview" title="Your site" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe></div>
+          <p class="frame-note" id="frame-note" role="status" hidden></p>
         </div>
         <div class="card chat">
           <h3>Ask for changes</h3>
           <ol class="msgs" id="msgs" aria-live="polite"></ol>
-          <div class="working" id="working" hidden><span class="dot"></span><span>Working on it. Small changes take a few seconds; a new design about a minute.</span></div>
+          <div class="working" id="working" hidden>
+            <div class="progress" id="work-bar" role="progressbar" aria-labelledby="work-step" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+            <p class="small"><b id="work-step" aria-live="polite"></b> <span class="muted" id="work-time" aria-hidden="true"></span></p>
+          </div>
           <form id="ask-form" class="stack">
+            <button type="button" class="suggest" id="add-social" hidden></button>
             <textarea id="ask" aria-label="What should change?" maxlength="2000" placeholder="Make the header red. Add our Sunday hours. Put the menu first."></textarea>
             <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
               <button type="submit" id="ask-go">Make the change</button>
@@ -640,12 +674,11 @@ let canBuyNow = true;
 let draft = null;
 let draftLoaded = false; // the draft snapshot has arrived (even if there's no draft)
 let stops = [];
-let working = false;
 
 fa.onAuthStateChanged(auth, async (user) => {
   stops.forEach((f) => f());
   stops = [];
-  me = null; draft = null; draftLoaded = false; // never act on the previous account's data
+  me = null; draft = null; draftLoaded = false; progressDoc = null; // never act on the previous account's data
   if (leaving) return; // on the way to the next page
   $("out").hidden = !user;
   $("who").textContent = user?.email || "";
@@ -661,14 +694,26 @@ fa.onAuthStateChanged(auth, async (user) => {
   show("v-app");
   refreshConfirmed();
   if (linkProblem) { $("confirm-note").textContent = linkProblem; linkProblem = ""; }
-  const ref = fs.doc(db, "users", user.uid);
+  listenDocs(user.uid);
   stops.push(
-    fs.onSnapshot(ref, (s) => { me = s.data() || {}; render(); maybeAutoClaim(); }, () => {}),
-    fs.onSnapshot(fs.doc(db, "users", user.uid, "site", "draft"), (s) => { draft = s.data() || null; draftLoaded = true; renderSite(); render(); maybeAutoClaim(); }, () => {}),
+    () => { docStops.forEach((f) => f()); docStops = []; },
     fs.onSnapshot(fs.query(fs.collection(db, "users", user.uid, "messages"), fs.orderBy("at", "asc"), fs.limitToLast(60)), (s) => renderMsgs(s.docs.map((d) => d.data())), () => {}),
   );
   api("/status").then((r) => { canBuyNow = r.canBuy !== false; render(); }).catch(() => {}); // makes the account, moves a waiting launch forward
 });
+
+// The account and its draft, kept up to date live. Listening again starts fresh from the server:
+// done when a build ends, so a live update that lagged or got lost can't leave the page behind.
+let docStops = [];
+let progressDoc = null; // users/{uid}/site/progress: { run, kind, phase, progress } of the latest build
+function listenDocs(uid) {
+  docStops.forEach((f) => f());
+  docStops = [
+    fs.onSnapshot(fs.doc(db, "users", uid), (s) => { me = s.data() || {}; render(); maybeAutoClaim(); }, () => {}),
+    fs.onSnapshot(fs.doc(db, "users", uid, "site", "draft"), (s) => { draft = s.data() || null; draftLoaded = true; renderSite(); render(); maybeAutoClaim(); }, () => {}),
+    fs.onSnapshot(fs.doc(db, "users", uid, "site", "progress"), (s) => { progressDoc = s.data() || null; renderBuild(); }, () => {}),
+  ];
+}
 
 // A password account confirms its email by opening the link we sent (maybe in another tab or on
 // their phone). Check again whenever they come back to this page, and get a fresh token once it is.
@@ -712,7 +757,10 @@ async function autoClaim(uid) {
 }
 
 // ---------- 1. business ----------
-const PF = ["business", "type", "city", "phone", "address", "email", "hours", "services", "about"];
+const PF = ["business", "type", "city", "phone", "address", "email", "social", "hours", "services", "about"];
+// Saved social pages as the owner would type them: "instagram.com/rosas, facebook.com/rosas".
+const socialText = (list) => (Array.isArray(list) ? list.map((x) => String(x.url || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")).join(", ") : "");
+const siteNames = (list) => { const n = list.map((x) => x.site); return n.length < 2 ? n.join("") : `${n.slice(0, -1).join(", ")} and ${n.at(-1)}`; };
 let profileEditing = false;
 let filledFrom = null;
 function fillProfile() {
@@ -720,7 +768,7 @@ function fillProfile() {
   if (now === filledFrom) return;
   filledFrom = now;
   const f = $("profile-form");
-  for (const k of PF) if (!f.elements[k].dataset.dirty) f.elements[k].value = me.profile?.[k] || ""; // never overwrite typing
+  for (const k of PF) if (!f.elements[k].dataset.dirty) f.elements[k].value = k === "social" ? socialText(me.profile?.social) : me.profile?.[k] || ""; // never overwrite typing
 }
 $("profile-form").addEventListener("input", (e) => { if (e.target.name) e.target.dataset.dirty = "1"; });
 $("profile-form").addEventListener("submit", async (e) => {
@@ -733,6 +781,8 @@ $("profile-form").addEventListener("submit", async (e) => {
     await api("/profile", { profile });
     for (const k of PF) delete f.elements[k].dataset.dirty;
     profileEditing = false;
+    filledFrom = null;
+    render(); // the saved details may have arrived before this answer did
   } catch (err) {
     $("profile-err").textContent = err.message;
   } finally {
@@ -750,40 +800,249 @@ $("profile-edit").addEventListener("click", () => {
 // ---------- 2. site ----------
 function renderSite() {
   const has = Boolean(draft?.html);
-  $("start").hidden = has;
   $("workbench").hidden = !has;
   if (has && $("preview").dataset.hash !== draft.hash) {
-    $("preview").srcdoc = draft.html;
+    $("preview").srcdoc = guarded(draft.html);
     $("preview").dataset.hash = draft.hash;
   }
+  fitPreview();
+  renderSocialHint();
+  renderBuild();
+}
+
+// The preview runs sandboxed, with no access to this page. Its one script (below, allowed by a
+// nonce; the site's own scripts stay blocked, as on the live site) keeps clicks inside the preview:
+// links to parts of the page scroll there, outside links open in a new tab, and calls, texts and
+// emails say what they'll do once the site is live. Nothing else can make the preview leave the page.
+function previewGuard() {
+  var say = function (m) { m.wb = 1; parent.postMessage(m, "*"); };
+  document.addEventListener("click", function (e) {
+    var el = e.target && e.target.closest ? e.target : null;
+    var a = el && el.closest("a[href], area[href]");
+    if (!a) {
+      var b = el && el.closest("button, input[type=submit], input[type=image]");
+      if (b && b.form) { e.preventDefault(); say({ kind: "form" }); }
+      return;
+    }
+    e.preventDefault();
+    var href = (a.getAttribute("href") || "").trim();
+    if (href.charAt(0) === "#") {
+      var id = href.slice(1), t = null;
+      try { t = id && document.getElementById(decodeURIComponent(id)); } catch (x) {}
+      if (location.hash === href && t) t.scrollIntoView();
+      else location.hash = id; // this page's own address: :target styles and scrolling work as on the live site
+      return;
+    }
+    var scheme = ((/^([a-z][a-z0-9+.-]*):/i.exec(href) || [])[1] || "").toLowerCase();
+    if (scheme === "http" || scheme === "https" || href.indexOf("//") === 0) { window.open(a.href, "_blank", "noopener"); say({ kind: "opened", href: a.href }); }
+    else if (scheme === "tel" || scheme === "sms" || scheme === "mailto") say({ kind: scheme, to: href.slice(scheme.length + 1).split("?")[0] });
+    else if (!scheme && /^(\.?\/)?(index\.html?)?$/i.test(href)) { location.hash = ""; scrollTo(0, 0); }
+    else say({ kind: "nowhere" });
+  }, true);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") say({ kind: "escape" }); });
+}
+const GUARD_JS = `(${previewGuard})();`;
+function guarded(html) {
+  const nonce = [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const add = `<meta http-equiv="Content-Security-Policy" content="script-src 'nonce-${nonce}'; form-action 'none'"><script nonce="${nonce}">${GUARD_JS}<\/script>`;
+  const m = /<head(\s[^>]*)?>/i.exec(html);
+  return m ? html.slice(0, m.index + m[0].length) + add + html.slice(m.index + m[0].length) : add + html;
+}
+let noteTimer = 0;
+function frameNote(msg) {
+  $("frame-note").textContent = msg;
+  $("frame-note").hidden = false;
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => ($("frame-note").hidden = true), 6000);
+}
+const phoneText = (raw) => {
+  let v = String(raw || "");
+  try { v = decodeURIComponent(v); } catch {}
+  const d = v.replace(/\D/g, "");
+  const ten = d.length === 11 && d[0] === "1" ? d.slice(1) : d;
+  return ten.length === 10 ? `(${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6)}` : v.slice(0, 30);
+};
+window.addEventListener("message", (e) => {
+  if (e.source !== $("preview").contentWindow || !e.data || e.data.wb !== 1) return;
+  const d = e.data;
+  if (d.kind === "escape") { if ($("frame").classList.contains("full")) setFull(false); return; }
+  let host = "";
+  try { host = new URL(String(d.href)).hostname.replace(/^www\./, ""); } catch {}
+  let to = String(d.to || "");
+  try { to = decodeURIComponent(to); } catch {}
+  const say = {
+    opened: host && `Opened ${host} in a new tab.`,
+    tel: `On your live site, this calls ${phoneText(d.to)}.`,
+    sms: `On your live site, this starts a text to ${phoneText(d.to)}.`,
+    mailto: `On your live site, this starts an email to ${to.slice(0, 80)}.`,
+    nowhere: "That link doesn't go anywhere yet. Ask for a change if it should.",
+    form: "Forms don't send from the preview.",
+  }[d.kind];
+  if (say) frameNote(say);
+});
+
+// Computer: the page laid out at a laptop's 1280 by 800, scaled down to the frame (in full
+// screen, at the window's own size when it's wider). Phone: 390 wide.
+const DESK = { w: 1280, h: 800 };
+function fitPreview() {
+  const f = $("frame");
+  const fr = $("preview");
+  const v = $("view");
+  if (f.classList.contains("phone")) {
+    fr.style.cssText = "";
+    v.style.height = "";
+    return;
+  }
+  const W = v.clientWidth;
+  if (!W) return; // not on screen yet
+  const full = f.classList.contains("full");
+  const w = full ? Math.max(DESK.w, W) : DESK.w;
+  const scale = W / w;
+  const h = full ? v.clientHeight / scale : DESK.h;
+  fr.style.width = `${w}px`;
+  fr.style.height = `${Math.round(h)}px`;
+  fr.style.transform = scale === 1 ? "" : `scale(${scale})`;
+  v.style.height = full ? "" : `${Math.round(DESK.h * scale)}px`;
+}
+new ResizeObserver(() => fitPreview()).observe($("view"));
+function setSize(phone) {
+  $("frame").classList.toggle("phone", phone);
+  $("as-phone").setAttribute("aria-pressed", String(phone));
+  $("as-desk").setAttribute("aria-pressed", String(!phone));
+  fitPreview();
+}
+$("as-phone").addEventListener("click", () => setSize(true));
+$("as-desk").addEventListener("click", () => setSize(false));
+if (matchMedia("(max-width:560px)").matches) setSize(true);
+function setFull(on) {
+  $("frame").classList.toggle("full", on);
+  document.documentElement.classList.toggle("preview-full", on);
+  $("full").setAttribute("aria-pressed", String(on));
+  $("full").textContent = on ? "Close full screen" : "Full screen";
+  fitPreview();
+  $("full").focus();
+}
+$("full").addEventListener("click", () => setFull(!$("frame").classList.contains("full")));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("frame").classList.contains("full")) setFull(false); });
+
+// Social pages saved in step 1 that the site doesn't link yet: one tap writes the request.
+function missingSocial() {
+  const list = Array.isArray(me?.profile?.social) ? me.profile.social : [];
+  if (!draft?.html) return [];
+  return list.filter((x) => !draft.html.includes(String(x.url || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")));
+}
+function renderSocialHint() {
+  const list = missingSocial();
+  $("add-social").hidden = !list.length || Boolean(buildNow());
+  if (list.length) $("add-social").textContent = `Add my ${siteNames(list)} to the site`;
+}
+$("add-social").addEventListener("click", () => {
+  const list = missingSocial();
+  if (!list.length) return;
+  $("ask").value = `Add links to our ${siteNames(list)} ${list.length > 1 ? "pages" : "page"} in the footer, with their icons.`;
+  $("ask").focus();
+});
+
+// ---------- build progress ----------
+// While a site is made: the step it's on and a bar. The server saves the step and, while a new
+// page is being written, how much is done (users/{uid}.builds); between saves, and for steps
+// without a count, the bar follows how long that kind of build usually takes.
+const STEP_TEXT = {
+  reading: { new: "Reading your business details…", change: "Reading your page…", claim: "Opening your preview…" },
+  writing: "Writing your page…",
+  editing: "Making the change…",
+  redesigning: "Redesigning your page…",
+  polishing: "Getting it ready to go live…",
+};
+const STEP_DEFAULT = { new: "Building your site…", change: "Making the change…", claim: "Getting your preview ready…" };
+const PACE = { new: 100, change: 25, redesign: 90, claim: 25 }; // seconds a build of that kind usually takes
+let mine = null; // a build or claim started on this page: { kind, at, hash }
+let finishing = null; // just finished here: { kind, at, hash } until the new page shows
+let ticker = 0;
+
+// Fresh copies of the account and the draft (see listenDocs).
+function syncNow() {
+  if (auth.currentUser && docStops.length) listenDocs(auth.currentUser.uid);
+}
+let lastSync = 0;
+let lastDone = 0; // when a build or claim started here last answered
+function buildNow() {
+  if (finishing) return { ...finishing, done: true };
+  let at = me?.builds?.running?.toMillis?.() || 0;
+  if (at && at < lastDone) at = 0; // that's the build that just answered here, still being cleared
+  const pd = progressDoc?.run === at ? progressDoc : {}; // only this build's (not an earlier one's)
+  if (at > Date.now() - 6 * 60e3) {
+    return { kind: pd.kind || mine?.kind || (draft?.html ? "change" : "new"), at: mine?.at || at, phase: pd.phase || null, progress: typeof pd.progress === "number" ? pd.progress : null };
+  }
+  if (mine) return { kind: mine.kind, at: mine.at, phase: mine.kind === "claim" && Date.now() - mine.at > 3000 ? "polishing" : "reading", progress: null };
+  return null;
+}
+function shareOf(st) {
+  if (st.done) return 1;
+  const secs = Math.max(0, (Date.now() - st.at) / 1000);
+  const pace = st.phase === "redesigning" ? PACE.redesign : PACE[st.kind] || 60;
+  let p = Math.max(0.92 * (1 - Math.exp(-secs / (0.6 * pace))), st.progress || 0, 0.02);
+  return Math.min(p, 0.98);
+}
+const clock = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+function paint(bar, p, done) {
+  const pct = Math.round(p * 100);
+  bar.firstElementChild.style.width = `${pct}%`;
+  bar.setAttribute("aria-valuenow", String(pct));
+  bar.classList.toggle("done", Boolean(done));
+}
+function renderBuild() {
+  const st = buildNow();
+  // Done here: keep the full bar up until the new page has arrived (or a few seconds have passed).
+  if (finishing && ((draft?.hash || null) !== finishing.hash || Date.now() - finishing.at > 4000)) { finishing = null; return renderBuild(); }
+  const big = Boolean(st && st.kind !== "change");
+  $("build-box").hidden = !big;
+  $("start").hidden = Boolean(draft?.html) || big;
+  $("working").hidden = !(st && st.kind === "change");
+  if (st) {
+    const text = st.done ? (st.kind === "change" ? "Done." : "Done. Here it is.") : (STEP_TEXT[st.phase]?.[st.kind] || STEP_TEXT[st.phase] || STEP_DEFAULT[st.kind]);
+    const p = shareOf(st);
+    const time = st.done ? "" : clock(Date.now() - st.at);
+    if (big) {
+      $("build-title").textContent = st.kind === "claim" ? "Getting your site ready" : "Building your site";
+      paint($("build-bar"), p, st.done);
+      if ($("build-step").textContent !== text) $("build-step").textContent = text;
+      $("build-time").textContent = time;
+      $("build-hint").textContent = st.kind === "claim" ? "About 20 seconds." : "This usually takes a minute or two. You can leave this page: it keeps going, and your site will be here when you come back.";
+    } else {
+      paint($("work-bar"), p, st.done);
+      if ($("work-step").textContent !== text) $("work-step").textContent = text;
+      $("work-time").textContent = time;
+    }
+  }
+  renderSocialHint(); // not while a build runs
+  const busyNow = Boolean(st);
+  // A build seen through the account (another tab or device): check it's still going now and then.
+  if (busyNow && !mine && !finishing && Date.now() - lastSync > 8000) { lastSync = Date.now(); syncNow(); }
+  if (busyNow && !ticker) ticker = setInterval(renderBuild, 500);
+  if (!busyNow && ticker) { clearInterval(ticker); ticker = 0; }
 }
 function renderMsgs(list) {
   $("msgs").replaceChildren(...list.map((m) => h("li", { class: [m.role === "owner" ? "owner" : "", m.failed ? "failed" : ""].join(" ").trim() || null }, m.text)));
   $("msgs").scrollTop = $("msgs").scrollHeight;
 }
-function setSize(phone) {
-  $("frame").classList.toggle("phone", phone);
-  $("as-phone").setAttribute("aria-pressed", String(phone));
-  $("as-desk").setAttribute("aria-pressed", String(!phone));
-}
-$("as-phone").addEventListener("click", () => setSize(true));
-$("as-desk").addEventListener("click", () => setSize(false));
-if (matchMedia("(max-width:560px)").matches) setSize(true);
 
 async function runBuild(request, btn, errEl) {
   errEl.textContent = "";
-  working = true;
-  $("working").hidden = false;
+  mine = { kind: draft?.html ? "change" : "new", at: Date.now(), hash: draft?.hash || null };
+  renderBuild();
   busy(btn, true, "Working…");
   try {
     await api("/build", { request });
+    finishing = { kind: mine.kind, at: Date.now(), hash: mine.hash };
+    syncNow();
     return true;
   } catch (err) {
     errEl.textContent = err.message;
     return false;
   } finally {
-    working = false;
-    $("working").hidden = true;
+    lastDone = Date.now();
+    mine = null;
     busy(btn, false, "Working…");
     render();
   }
@@ -806,10 +1065,13 @@ $("undo").addEventListener("click", async () => {
 // Start from a Web Burrito preview: the server opens it (personal link key or passcode) and gets it ready to go live.
 async function claim(slug, cred) {
   $("claim-err").textContent = "";
-  $("claim-note").textContent = "Getting your site ready to go live. About 20 seconds…";
+  mine = { kind: "claim", at: Date.now(), hash: draft?.hash || null };
+  renderBuild();
   busy($("claim-go"), true, "Getting it ready…");
   try {
     await api("/claim", cred.key ? { slug, key: cred.key } : { slug, passcode: cred.code });
+    finishing = { kind: "claim", at: Date.now(), hash: mine.hash };
+    syncNow();
     forgetClaim();
     return true;
   } catch (err) {
@@ -817,8 +1079,9 @@ async function claim(slug, cred) {
     $("claim-err").textContent = err.message;
     return false;
   } finally {
-    $("claim-note").textContent = "";
+    mine = null;
     busy($("claim-go"), false, "Getting it ready…");
+    renderBuild();
   }
 }
 $("claim-form").addEventListener("submit", async (e) => {
@@ -1110,9 +1373,10 @@ function render() {
   $("profile-done").hidden = editing;
   $("profile-edit").hidden = editing;
   if (editing) fillProfile();
+  $("social-field").hidden = !cfg?.features?.includes("social");
   const p0 = me.profile || {};
   $("profile-summary").hidden = editing || !hasProfile;
-  $("profile-summary").textContent = [p0.business, p0.phone, p0.address || p0.city].filter(Boolean).join(" · ");
+  $("profile-summary").textContent = [p0.business, p0.phone, p0.address || p0.city, Array.isArray(p0.social) && p0.social.length ? siteNames(p0.social) : ""].filter(Boolean).join(" · ");
   // Someone who came from their preview can start from it before typing anything.
   $("s-site").hidden = !hasProfile && !(claimSlug && !draft?.html);
 
@@ -1121,8 +1385,8 @@ function render() {
   const used = me.builds?.free || 0;
   $("tries").textContent = paid ? "" : `${Math.max(0, free - used)} of ${free} free tries left`;
   $("draft-note").textContent = draft?.source === "preview" ? "Started from your preview" : "";
-  const runningElsewhere = (me.builds?.running?.toMillis?.() || 0) > Date.now() - 6 * 60e3;
-  if (!working) $("working").hidden = !runningElsewhere;
+  renderBuild(); // a build started here or on another device
+  renderSocialHint();
 
   const hasSite = Boolean(draft?.html);
   const plan = me.plan?.env === cfg?.square?.environment ? me.plan : null; // a test-mode plan doesn't count once payments are real

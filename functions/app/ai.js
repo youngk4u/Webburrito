@@ -24,6 +24,9 @@ Design
   page has scripts or interactive widgets, replace them with plain HTML and CSS (CSS hover and :target are fine).
 - No <form>, <input>, iframes or embeds. To contact the business use tel:, sms:, mailto: and Google Maps links
   (https://www.google.com/maps/search/?api=1&query=...).
+- Social pages: link every page in the business details' "social" list, named by its site ("Instagram",
+  "Facebook"...) with a small inline SVG icon if it fits, in the footer and with the other ways to reach them.
+  Use those exact URLs. Never add a social link, handle or follower count that isn't in the details.
 - Photos: keep any photo URLs that are already in the current page. You may add photos ONLY from the list provided
   (exact URLs). Never make up an image URL. Give every photo a background color or gradient fallback.
 - Keep the page under 150 KB.
@@ -107,9 +110,9 @@ const toolCall = (out, name) => (out.stop === "tool_use" ? out.tools.find((t) =>
 class NoChange extends Error {}
 
 /** One change to the current page. Returns { html, usage, mode } or throws. */
-async function changePage({ model, system, user, current }) {
+async function changePage({ model, system, user, current, onProgress }) {
   const first = await claude({
-    model, system, maxTokens: 16000, timeoutMs: 150_000, tools: [EDIT_TOOL, REWRITE_TOOL], toolChoice: ONE_TOOL,
+    model, system, maxTokens: 16000, timeoutMs: 150_000, tools: [EDIT_TOOL, REWRITE_TOOL], toolChoice: ONE_TOOL, onProgress,
     messages: [{ role: "user", content: `${user}\n\nCall edit_page (or rewrite_page for a redesign). Don't answer in text.` }],
   });
   const edit = toolCall(first, "edit_page");
@@ -128,7 +131,7 @@ async function changePage({ model, system, user, current }) {
   if (first.stop === "max_tokens" && !edit) throw new Error(TOO_LONG); // a rewrite that didn't fit won't fit again
   // The edits didn't line up with the page: ask for the whole page (slower, but it always fits).
   const second = await claude({
-    model, system, maxTokens: 16000, timeoutMs: 280_000, tools: [REWRITE_TOOL], toolChoice: ONE_TOOL,
+    model, system, maxTokens: 16000, timeoutMs: 280_000, tools: [REWRITE_TOOL], toolChoice: ONE_TOOL, onProgress,
     messages: [{ role: "user", content: `${user}\n\nCall rewrite_page with the whole updated page. Don't answer in text.` }],
   });
   const html = asPage(toolCall(second, "rewrite_page")?.input?.html) || (second.stop === "end_turn" ? cleanHtml(second.text) : null);
@@ -138,17 +141,17 @@ async function changePage({ model, system, user, current }) {
 
 /**
  * Builds a new site (current = null) or edits the current one. Returns { html, usage, mode } or
- * throws if Claude's answer wasn't a usable page.
+ * throws if Claude's answer wasn't a usable page. `onProgress` hears how far along it is.
  */
-export async function buildSite({ profile, current, request, history = [] }) {
+export async function buildSite({ profile, current, request, history = [], onProgress }) {
   const facts = JSON.stringify(profile, null, 2);
   const past = history.length ? `\nEarlier requests from the owner (already done):\n${history.map((h) => `- ${h}`).join("\n")}\n` : "";
   if (current) {
     const user = `Business details:\n${facts}\n${past}\n${photoHints(profile)}\n\nCurrent page:\n${current}\n\nThe owner asks: ${request}`;
-    return changePage({ model: BUILD_MODEL.value(), system: BUILD_SYSTEM, user, current });
+    return changePage({ model: BUILD_MODEL.value(), system: BUILD_SYSTEM, user, current, onProgress });
   }
   const user = `Business details:\n${facts}\n\n${photoHints(profile)}\n\nThe owner says: ${request || "Make our website."}\n\nReturn the whole page.`;
-  const out = await claude({ model: BUILD_MODEL.value(), system: BUILD_SYSTEM, messages: [{ role: "user", content: user }], maxTokens: 16000, timeoutMs: 280_000 });
+  const out = await claude({ model: BUILD_MODEL.value(), system: BUILD_SYSTEM, messages: [{ role: "user", content: user }], maxTokens: 16000, timeoutMs: 280_000, onProgress });
   const html = out.stop === "max_tokens" ? null : cleanHtml(out.text);
   if (!html) throw new Error(out.stop === "max_tokens" ? TOO_LONG : "The builder didn't return a page. Try again.");
   return { html, usage: out.usage, mode: "new" };

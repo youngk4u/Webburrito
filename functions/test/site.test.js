@@ -120,3 +120,16 @@ test("servedPage: indexable, one canonical address, business data in the head, n
   assert.ok(out.includes("<style>/* </head> */ a{b:c}</style>") && out.includes("<body><br /><p>$&amp; x</p></body>"), "the rest is byte-for-byte");
   assert.equal(servedPage("<p>no head</p>", {}, "https://x.com/"), "<p>no head</p>");
 });
+
+test("social pages: Google's business data lists them; a claimed preview's links fill the profile", () => {
+  const social = [{ site: "Instagram", url: "https://www.instagram.com/rosasbakery/", handle: "@rosasbakery" }];
+  assert.deepEqual(JSON.parse(jsonLd({ business: "Rosa's", social }, "https://rosas.com/")).sameAs, ["https://www.instagram.com/rosasbakery/"]);
+  assert.equal(JSON.parse(jsonLd({ business: "Rosa's", social: [{ url: "https://evil.example/" }] }, "https://rosas.com/")).sameAs, undefined);
+  assert.equal(JSON.parse(jsonLd({ business: "Rosa's" }, "https://rosas.com/")).sameAs, undefined);
+  const { facts } = livePreview(`<html><head><title>Rosa's Bakery · LA</title></head><body>
+    <a href="https://www.instagram.com/rosasbakery/">Instagram</a> <a href="https://www.facebook.com/RosasBakery">Facebook</a>
+    <a href="https://www.google.com/maps/search/?api=1&query=x">Map</a> <a href="https://example.com/">Other</a></body></html>`);
+  assert.deepEqual(facts.social.map((s) => s.site), ["Instagram", "Facebook"]);
+  assert.deepEqual(fillProfile({ business: "Rosa's" }, facts).social.map((s) => s.site), ["Instagram", "Facebook"]);
+  assert.deepEqual(fillProfile({ business: "Rosa's", social }, facts).social, social); // what the owner typed wins
+});
