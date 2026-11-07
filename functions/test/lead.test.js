@@ -31,6 +31,13 @@ test("trims, strips control characters, and cuts long text instead of rejecting"
   assert.equal(lead.message.length, FIELDS.message);
 });
 
+test("the email copied into the message for older servers is taken back out", () => {
+  const only = { business: "Rosa's Bakery", email: "rosa@example.com", phone: "" };
+  assert.equal(parseLead({ ...only, message: "Pan dulce\n\nEmail: rosa@example.com" }).lead.message, "Pan dulce");
+  assert.equal(parseLead({ ...only, message: "Email: rosa@example.com" }).lead.message, "");
+  assert.equal(parseLead({ ...only, message: "Write to Email: other@example.com" }).lead.message, "Write to Email: other@example.com");
+});
+
 test("honeypot marks spam", () => {
   assert.equal(parseLead({ ...form, hp_note: "http://spam.example" }).spam, true);
 });

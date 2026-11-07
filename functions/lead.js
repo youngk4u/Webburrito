@@ -24,6 +24,10 @@ export function parseLead(body) {
     lead[key] = v.replace(CONTROL, "").trim().slice(0, max);
   }
   if (!lead.business) return null;
+  // The home page also puts an email-only request's email at the end of the message (so servers
+  // from before the email field keep it). It has its own field here, so take it back out.
+  const tail = `Email: ${lead.email}`;
+  if (lead.email && lead.message.endsWith(tail)) lead.message = lead.message.slice(0, -tail.length).trim();
   const opt = (v, re) => (typeof v === "string" && re.test(v) ? v : null);
   lead.visitor = opt(body.visitor, ID);
   lead.tz = opt(body.tz, TZ);

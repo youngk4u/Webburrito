@@ -736,7 +736,11 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
     sending=true; go.disabled=true; go.textContent='Sending…'; ok.classList.remove('show'); fail.hidden=true;
     var ac=window.AbortController?new AbortController():null, timer=setTimeout(function(){if(ac)ac.abort();},15000);
     function done(){clearTimeout(timer);sending=false;go.disabled=false;go.textContent='Build my free preview';}
-    fetch('/api/lead',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d),signal:ac?ac.signal:undefined})
+    // When the email is the only way to reach them, it also goes at the end of the message: a server
+    // from before the email field keeps that (and a newer one takes it back out).
+    var wire=Object.assign({},d);
+    if(d.email&&!d.phone)wire.message=(d.message?d.message+'\n\n':'')+'Email: '+d.email;
+    fetch('/api/lead',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(wire),signal:ac?ac.signal:undefined})
       .then(function(r){if(!r.ok)throw new Error(r.status);done();req.reset();ok.classList.add('show');})
       .catch(function(){
         done();
