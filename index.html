@@ -49,7 +49,7 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
-body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:#fff}
 .wrap{max-width:1140px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 h1,h2,h3{margin:0;text-wrap:balance}
@@ -79,7 +79,11 @@ footer .logo{color:#fff}
 .nav a:hover{color:#E23B2E}
 .nav .btn{min-height:42px;padding:.45rem 1rem;font-size:.92rem;white-space:nowrap;border-color:#1B1714;background:var(--wall);color:#1B1714}
 .nav .btn:hover{box-shadow:none;transform:translateY(-1px)}
-@media (max-width:760px){.nav a:not(.btn){display:none}}
+#login-link{white-space:nowrap}
+@media (max-width:760px){.nav{gap:1rem}.nav a:not(.btn):not(#login-link){display:none}}
+@media (max-width:420px){.top .wrap{gap:.6rem}.nav{gap:.8rem;font-size:.9rem}.nav .btn{min-height:40px;padding:.4rem .85rem;font-size:.86rem}}
+@media (max-width:374px){.top .logo.pill{font-size:.9rem;padding:.24rem .75rem .2rem}}
+@media (max-width:339px){#login-link{display:none}}
 
 /* Hero */
 .hero{background:var(--wall);color:#1B1714;position:relative;overflow:hidden;border-bottom:4px solid #1B1714}
@@ -231,6 +235,9 @@ form.ticket label{display:grid;gap:.35rem;font-weight:700;font-size:.92rem}
 form.ticket input,form.ticket select,form.ticket textarea{font:inherit;font-size:1rem;padding:.75rem .9rem;border-radius:10px;border:2px solid #D9CDB8;background:#fff;color:#1B1714;min-height:48px;width:100%}
 form.ticket textarea{min-height:96px;resize:vertical}
 form.ticket .small{font-size:.85rem;color:#6B5E4C}
+form.ticket .opt{font-weight:400;color:#6B5E4C;font-size:.85rem}
+form.ticket #f-reach-err{color:#B4271B;font-weight:700}
+form.ticket input[aria-invalid="true"]{border-color:#B4271B}
 .ok{display:none;background:#FFF3C4;border-radius:10px;padding:1rem;font-weight:700}
 .ok.show{display:block}
 .ticket .fail{background:#FDE3E0;color:#1B1714;border-radius:10px;padding:1rem;font-weight:700}
@@ -427,6 +434,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
       <a href="#inside">What's inside</a>
       <a href="#menu">Menu &amp; prices</a>
       <a href="#faq">Questions</a>
+      <a href="/app/?login" id="login-link" hidden>Log in</a>
       <a class="btn" href="#contact">Free preview</a>
     </nav>
   </div>
@@ -633,7 +641,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
   <div class="wrap">
     <div>
       <h2 id="contact-h">Hungry for a website?</h2>
-      <p class="lede">Tell us the name of your business. We'll build a free preview and text you the link. No payment, no commitment.</p>
+      <p class="lede">Tell us the name of your business. We'll build a free preview and send you the link by email or text. No payment, no commitment.</p>
       <div class="reach">
         <a class="big" href="tel:+13102798278">(310) 279-8278</a>
         <div class="row"><span>Call or text us</span><button class="copy" type="button" data-copy="(310) 279-8278">Copy number</button></div>
@@ -646,19 +654,21 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
         <label for="f-biz">Business name<input id="f-biz" name="business" required autocomplete="organization" placeholder="e.g. Panadería La Rosa"></label>
         <label for="f-city">City<input id="f-city" name="city" autocomplete="address-level2" placeholder="e.g. Columbus, OH"></label>
       </div>
+      <label for="f-name">Your name<input id="f-name" name="name" autocomplete="name"></label>
       <div class="two">
-        <label for="f-name">Your name<input id="f-name" name="name" autocomplete="name"></label>
-        <label for="f-phone">Phone<input id="f-phone" name="phone" type="tel" autocomplete="tel"></label>
+        <label for="f-email">Email<input id="f-email" name="email" type="email" autocomplete="email"></label>
+        <label for="f-phone"><span>Phone <span class="opt">(optional with an email)</span></span><input id="f-phone" name="phone" type="tel" autocomplete="tel"></label>
       </div>
+      <p class="small" id="f-reach-err" role="alert" hidden>Add an email or a phone number, so we can send you the link.</p>
       <label for="f-lang">Preferred language
         <select id="f-lang" name="language"><option>English</option><option>Español</option><option>Tagalog</option><option>한국어</option></select>
       </label>
       <label for="f-msg">Anything we should know?<textarea id="f-msg" name="message" maxlength="2000" placeholder="Your menu, your hours, what makes your shop special"></textarea></label>
       <div class="hp" aria-hidden="true"><label for="f-hp">Leave this empty<input id="f-hp" name="hp_note" tabindex="-1" autocomplete="off"></label></div>
       <button class="btn btn-red" type="submit" id="req-go">Build my free preview</button>
-      <p class="ok" id="ok" role="status">Order in. We'll text you when your preview is ready.</p>
+      <p class="ok" id="ok" role="status">Order in. We'll send you the link when your preview is ready.</p>
       <p class="fail" id="fail" role="alert" hidden>That didn't go through. <a id="fail-sms" href="sms:+13102798278">Text it to us</a> or <a id="fail-mail" href="mailto:hello@webburrito.com">email it</a> instead. Your details are filled in for you.</p>
-      <p class="small">We'll only use your number to send your preview. No spam, ever.</p>
+      <p class="small">We'll only use your email or number to send your preview. No spam, ever.</p>
     </form>
   </div>
 </section>
@@ -668,7 +678,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
   <div class="wrap">
     <span class="logo" style="font-size:1rem">web<b>burrito</b></span>
     <span>Websites for small businesses, nationwide · A Qoop studio</span>
-    <nav class="flinks" aria-label="More"><a href="https://webburrito.com/restaurant-websites/">Restaurants</a><a href="https://webburrito.com/food-truck-websites/">Food trucks</a><a href="https://webburrito.com/bakery-websites/">Bakeries & cafés</a><a href="https://webburrito.com/auto-repair-websites/">Auto repair</a><a href="https://webburrito.com/salon-websites/">Salons & barbers</a><a href="https://webburrito.com/contractor-websites/">Contractors</a><a href="https://webburrito.com/guides/small-business-website-cost/">What a website costs</a><a href="tel:+13102798278">(310) 279-8278</a><a href="mailto:hello@webburrito.com">hello@webburrito.com</a></nav>
+    <nav class="flinks" aria-label="More"><a href="https://webburrito.com/restaurant-websites/">Restaurants</a><a href="https://webburrito.com/food-truck-websites/">Food trucks</a><a href="https://webburrito.com/bakery-websites/">Bakeries & cafés</a><a href="https://webburrito.com/auto-repair-websites/">Auto repair</a><a href="https://webburrito.com/salon-websites/">Salons & barbers</a><a href="https://webburrito.com/contractor-websites/">Contractors</a><a href="https://webburrito.com/guides/small-business-website-cost/">What a website costs</a><a href="tel:+13102798278">(310) 279-8278</a><a href="mailto:hello@webburrito.com">hello@webburrito.com</a><a href="/app/?login" id="login-foot" hidden>Customer log in</a></nav>
   </div>
 </footer>
 
@@ -695,6 +705,8 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
     });
     var hero=document.querySelector('a.btn.btn-red[href="#contact"]');
     if(hero){var b=document.createElement('a');b.className='btn btn-white';b.href='/app/';b.textContent='Build it now';hero.parentNode.insertBefore(b,hero.nextSibling);}
+    ['login-link','login-foot'].forEach(function(id){var a=document.getElementById(id);if(a)a.hidden=false;});
+    window.wbOpen=true;
   }).catch(function(){});
   document.querySelectorAll('.copy').forEach(function(b){
     b.addEventListener('click',function(){
@@ -709,11 +721,16 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
   req.addEventListener('submit',function(e){
     e.preventDefault();
     if(sending)return;
-    var biz=document.getElementById('f-biz');
+    var biz=document.getElementById('f-biz'), em=document.getElementById('f-email'), ph=document.getElementById('f-phone'), reachErr=document.getElementById('f-reach-err');
     if(!biz.value.trim()){biz.focus();biz.setAttribute('aria-invalid','true');return;}
     biz.removeAttribute('aria-invalid');
+    // Email or phone: one is enough.
+    var emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim()), phoneOk=ph.value.replace(/\D/g,'').length>=7;
+    if(em.value.trim()&&!emailOk){reachErr.textContent='That email doesn\u2019t look right.';reachErr.hidden=false;em.setAttribute('aria-invalid','true');em.focus();return;}
+    if(!emailOk&&!phoneOk){reachErr.textContent='Add an email or a phone number, so we can send you the link.';reachErr.hidden=false;em.setAttribute('aria-invalid','true');em.focus();return;}
+    reachErr.hidden=true;em.removeAttribute('aria-invalid');
     var d={page:location.pathname,ref:(/[?&]r=([^&#]*)/.exec(location.search)||[])[1]||null};
-    ['business','city','name','phone','language','message','hp_note'].forEach(function(k){d[k]=req.elements[k].value.trim();});
+    ['business','city','name','email','phone','language','message','hp_note'].forEach(function(k){d[k]=req.elements[k].value.trim();});
     try{d.visitor=localStorage.getItem('wb-vid');d.internal=localStorage.getItem('wb-internal')==='1';}catch(x){}
     try{d.tz=Intl.DateTimeFormat().resolvedOptions().timeZone;}catch(x){}
     sending=true; go.disabled=true; go.textContent='Sending…'; ok.classList.remove('show'); fail.hidden=true;
@@ -726,6 +743,7 @@ footer .flinks a{color:#E9E2D6;text-decoration:none}footer .flinks a:hover{color
         var lines=['Free preview request','Business: '+d.business];
         if(d.city)lines.push('City: '+d.city);
         if(d.name)lines.push('Name: '+d.name);
+        if(d.email)lines.push('Email: '+d.email);
         if(d.phone)lines.push('Phone: '+d.phone);
         lines.push('Language: '+d.language);
         if(d.message)lines.push(d.message);

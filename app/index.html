@@ -50,6 +50,11 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
 @media (max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
 .center{max-width:480px;margin:3rem auto 0;text-align:center;display:grid;gap:1rem;justify-items:center}
+.acct{display:inline-flex;border:2px solid var(--ink);border-radius:999px;overflow:hidden}
+.acct button{all:unset;cursor:pointer;padding:.5rem 1.1rem;font-weight:800}
+.acct button[aria-pressed="true"]{background:var(--ink);color:var(--page)}
+.acct button:focus-visible{outline:3px solid var(--salsa);outline-offset:-3px}
+#pw-form,#reset-form{width:100%;text-align:left}
 .err{color:var(--salsa-ink);font-weight:700}
 .err:empty{display:none}
 .ok{color:var(--ok);font-weight:700}
@@ -131,13 +136,20 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
   <section id="v-signin" class="center card" hidden>
     <h1 id="signin-title">Your website</h1>
     <p id="signin-lead">Build it with us, see it right away, and put it online on your own .com.</p>
-    <button id="google" type="button">Continue with Google</button>
-    <p class="muted small">or get a sign-in link by email</p>
-    <form id="email-form" class="stack" style="width:100%">
+    <div class="acct" role="group" aria-label="New or returning">
+      <button type="button" id="tab-new" aria-pressed="true">Create account</button>
+      <button type="button" id="tab-old" aria-pressed="false">Log in</button>
+    </div>
+    <form id="pw-form" class="stack" novalidate>
       <label>Email<input id="email" type="email" autocomplete="email" required></label>
-      <button type="submit" class="ghost">Email me a sign-in link</button>
+      <label>Password <span class="hint" id="pw-hint">at least 8 characters</span><input id="password" type="password" autocomplete="new-password" required></label>
+      <button type="submit" id="pw-go">Create account</button>
+      <button type="button" class="link" id="forgot" hidden>Forgot your password?</button>
     </form>
+    <p class="muted small">or</p>
+    <button id="google" type="button" class="ghost">Continue with Google</button>
     <p class="err" id="signin-err" role="alert"></p>
+    <p class="muted small" id="signin-note" role="status"></p>
     <p class="muted small">By continuing you agree to the <a href="/terms/">terms</a> and <a href="/privacy/">privacy policy</a>.</p>
   </section>
 
@@ -147,10 +159,14 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
     <p><a href="/">Back to webburrito.com</a></p>
   </section>
 
-  <section id="v-sent" class="center card" hidden>
-    <h1>Check your email</h1>
-    <p>We sent a sign-in link to <b id="sent-to"></b>. Open it on this device.</p>
-    <button class="link" type="button" id="sent-back">Use a different email</button>
+  <section id="v-reset" class="center card" hidden>
+    <h1>Set a new password</h1>
+    <p>For <b id="reset-email"></b>.</p>
+    <form id="reset-form" class="stack" novalidate>
+      <label>New password <span class="hint">at least 8 characters</span><input id="reset-pw" type="password" autocomplete="new-password" required></label>
+      <button type="submit" id="reset-go">Save and log in</button>
+    </form>
+    <p class="err" id="reset-err" role="alert"></p>
   </section>
 
   <section id="v-app" hidden>
@@ -231,6 +247,15 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
       <div class="head"><span class="step">3</span><h2>Go live</h2></div>
       <div class="card stack" id="closed" hidden><p>Sign-ups open soon. Call or text <a href="tel:+13102798278">(310) 279-8278</a> and we'll set you up by hand.</p></div>
       <form id="buy-form" class="stack" hidden>
+        <div class="card stack" id="confirm-box" hidden>
+          <h3>Confirm your email</h3>
+          <p>Before you pay, open the link we sent to <b id="confirm-to"></b>, then come back here. It makes sure your receipts and domain emails reach you.</p>
+          <div class="acts">
+            <button type="button" id="confirm-done">I've confirmed it</button>
+            <button type="button" class="ghost" id="confirm-again">Send the link again</button>
+          </div>
+          <p class="muted small" id="confirm-note" role="status"></p>
+        </div>
         <div class="card stack">
           <h3>Pick a plan</h3>
           <div class="billing" role="radiogroup" aria-label="Billing">
@@ -253,7 +278,7 @@ label .hint{font-weight:400;color:var(--ink-2);font-size:.85rem}
 
         <div class="card stack">
           <h3>Domain owner</h3>
-          <p class="muted small">The domain is registered in this name. It has to be real; it's kept private from the public.</p>
+          <p class="muted small">The domain is registered in this name. Domain registries need a real name, email, phone and address for every domain (that's why a phone is needed here); they're kept private from the public.</p>
           <div class="grid2">
             <label>First name<input name="first" required autocomplete="given-name"></label>
             <label>Last name<input name="last" required autocomplete="family-name"></label>
@@ -351,7 +376,7 @@ const fa = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.j
 const fs = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
 
 const $ = (id) => document.getElementById(id);
-const views = ["v-loading", "v-closed", "v-signin", "v-sent", "v-app"];
+const views = ["v-loading", "v-closed", "v-signin", "v-reset", "v-app"];
 const show = (id) => views.forEach((v) => ($(v).hidden = v !== id));
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -415,7 +440,75 @@ async function api(path, body = {}) {
   return j;
 }
 
-// ---------- sign-in ----------
+// ---------- sign-in: create an account or log in with email and password, or Google ----------
+// (No emailed sign-in links: one would open an account even if a stranger had set its password.)
+let mode = "new";
+const knownHere = () => { try { return localStorage.getItem("wb-has-account") === "1"; } catch { return false; } };
+function setMode(m) {
+  mode = m;
+  $("tab-new").setAttribute("aria-pressed", String(m === "new"));
+  $("tab-old").setAttribute("aria-pressed", String(m === "old"));
+  $("pw-go").textContent = m === "new" ? "Create account" : "Log in";
+  $("password").autocomplete = m === "new" ? "new-password" : "current-password";
+  $("pw-hint").hidden = m !== "new";
+  $("forgot").hidden = m === "new";
+  $("signin-err").textContent = $("signin-note").textContent = "";
+}
+setMode(new URLSearchParams(location.search).has("login") || knownHere() ? "old" : "new");
+$("tab-new").addEventListener("click", () => setMode("new"));
+$("tab-old").addEventListener("click", () => setMode("old"));
+// Keep ?claim= and ?plan= so emailed links bring them back to the same place.
+const keepQ = () => new URLSearchParams([...new URLSearchParams(location.search)].filter(([k]) => ["claim", "plan", "billing"].includes(k))).toString();
+const backHere = () => `${location.origin}/app/${keepQ() ? `?${keepQ()}` : ""}`;
+const SIGNIN_ERRORS = {
+  "auth/email-already-in-use": "There's already an account with this email. Log in instead, or use “Forgot your password?”.",
+  "auth/invalid-credential": "That email and password don't match. Try again, or use “Forgot your password?”.",
+  "auth/wrong-password": "That email and password don't match. Try again, or use “Forgot your password?”.",
+  "auth/user-not-found": "That email and password don't match. Try again, or use “Forgot your password?”.",
+  "auth/invalid-email": "That email doesn't look right.",
+  "auth/missing-password": "Type a password.",
+  "auth/weak-password": "Use at least 8 characters for your password.",
+  "auth/too-many-requests": "Too many tries. Wait a few minutes, or use “Forgot your password?”.",
+  "auth/operation-not-allowed": "Signing up with an email isn't switched on yet. Use Continue with Google, or call (310) 279-8278.",
+  "auth/network-request-failed": "Couldn't reach Web Burrito. Check your connection and try again.",
+};
+const signinError = (err) => SIGNIN_ERRORS[err.code] || `That didn't work (${err.code || err.message}).`;
+$("pw-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("signin-err").textContent = $("signin-note").textContent = "";
+  const email = $("email").value.trim(), password = $("password").value;
+  if (!email) { $("signin-err").textContent = "Type your email."; return $("email").focus(); }
+  if (mode === "new" && password.length < 8) { $("signin-err").textContent = SIGNIN_ERRORS["auth/weak-password"]; return $("password").focus(); }
+  const go = $("pw-go");
+  go.disabled = true;
+  go.textContent = mode === "new" ? "Creating your account…" : "Logging in…";
+  try {
+    if (mode === "new") {
+      const { user } = await fa.createUserWithEmailAndPassword(auth, email, password);
+      // They can build right away; paying waits until this link is opened (they can ask again then).
+      fa.sendEmailVerification(user, { url: backHere() }).catch(() => {});
+    } else {
+      await fa.signInWithEmailAndPassword(auth, email, password);
+    }
+  } catch (err) {
+    if (err.code === "auth/email-already-in-use") setMode("old");
+    $("signin-err").textContent = signinError(err);
+  } finally {
+    go.disabled = false;
+    go.textContent = mode === "new" ? "Create account" : "Log in";
+  }
+});
+$("forgot").addEventListener("click", async () => {
+  $("signin-err").textContent = $("signin-note").textContent = "";
+  const email = $("email").value.trim();
+  if (!email) { $("signin-err").textContent = "Type your email above, then tap “Forgot your password?” again."; return $("email").focus(); }
+  try {
+    await fa.sendPasswordResetEmail(auth, email, { url: backHere() });
+  } catch (err) {
+    if (err.code !== "auth/user-not-found") { $("signin-err").textContent = signinError(err); return; }
+  }
+  $("signin-note").textContent = `If there's an account for ${email}, we just emailed it a link to set a new password.`;
+});
 $("google").addEventListener("click", async () => {
   $("signin-err").textContent = "";
   try {
@@ -428,52 +521,98 @@ $("google").addEventListener("click", async () => {
     }
   } catch (e) {
     if (!["auth/popup-closed-by-user", "auth/cancelled-popup-request"].includes(e.code)) {
-      $("signin-err").textContent = e.code === "auth/popup-blocked" ? "Your browser blocked the sign-in window. Allow pop-ups and try again." : `Sign-in didn't work (${e.code || e.message}).`;
+      $("signin-err").textContent = e.code === "auth/popup-blocked" ? "Your browser blocked the sign-in window. Allow pop-ups and try again."
+        : e.code === "auth/account-exists-with-different-credential" ? "There's already an account with this email. Log in with its password, or use “Forgot your password?”."
+        : `Sign-in didn't work (${e.code || e.message}).`;
     }
   }
 });
-$("email-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email = $("email").value.trim();
-  try {
-    // Keep ?claim= and ?plan= so the link brings them back to the same place.
-    const keepQ = new URLSearchParams([...new URLSearchParams(location.search)].filter(([k]) => ["claim", "plan", "billing"].includes(k))).toString();
-    await fa.sendSignInLinkToEmail(auth, email, { url: `${location.origin}/app/${keepQ ? `?${keepQ}` : ""}`, handleCodeInApp: true });
-    try { localStorage.setItem("wb-signin-email", email); } catch {}
-    $("sent-to").textContent = email;
-    show("v-sent");
-  } catch (err) {
-    $("signin-err").textContent = `Couldn't send the link (${err.code || err.message}).`;
-  }
-});
-$("sent-back").addEventListener("click", () => show("v-signin"));
-if (fa.isSignInWithEmailLink(auth, location.href)) {
-  let email = null;
-  try { email = localStorage.getItem("wb-signin-email"); } catch {}
-  if (!email) email = prompt("Confirm your email to finish signing in");
-  if (email) {
-    try {
-      await fa.signInWithEmailLink(auth, email, location.href);
-      const keepQ = new URLSearchParams([...new URLSearchParams(location.search)].filter(([k]) => ["claim", "plan", "billing"].includes(k))).toString();
-      history.replaceState(null, "", `/app/${keepQ ? `?${keepQ}` : ""}`);
-    } catch (err) {
-      $("signin-err").textContent = "That sign-in link has expired or was already used. Ask for a new one.";
-    }
-  }
-}
 $("out").addEventListener("click", () => fa.signOut(auth));
+
+// ---------- links from our emails: confirm your email, set a new password ----------
+// They land here once Firebase's email templates point to webburrito.com/app/ (README, "Email
+// accounts"); until then Firebase's own pages handle them. A confirm link only counts when it's
+// opened while logged in to that account: someone who made an account with another person's
+// email can't get it confirmed by that person clicking an email they never asked for.
+const linkQ = new URLSearchParams(location.search);
+const action = { mode: linkQ.get("mode"), code: linkQ.get("oobCode") };
+// Where they go afterwards: only ever a page of /app/ on this site.
+const after = (() => {
+  try {
+    const u = new URL(linkQ.get("continueUrl") || "/app/", location.origin);
+    if (u.origin === location.origin && u.pathname.startsWith("/app/")) return u.pathname + u.search;
+  } catch {}
+  return "/app/";
+})();
+let confirmFor = null; // the email a confirm link is for, until it's used
+let resetFor = null;   // the email a set-a-new-password link is for
+let linkProblem = "";
+let leaving = false;
+if (action.mode) {
+  try {
+    if (action.mode === "verifyEmail" && action.code) confirmFor = String((await fa.checkActionCode(auth, action.code)).data.email || "").toLowerCase() || null;
+    else if (action.mode === "resetPassword" && action.code) resetFor = await fa.verifyPasswordResetCode(auth, action.code);
+    else if (action.mode === "recoverEmail" && action.code) { await fa.applyActionCode(auth, action.code); linkProblem = "Your account's email address is back to what it was. If you didn't ask for that change, set a new password with “Forgot your password?”."; }
+    else if (action.mode === "signIn") linkProblem = "Sign-in links aren't used anymore. Log in with your password (or “Forgot your password?”), or continue with Google.";
+  } catch {
+    linkProblem = action.mode === "resetPassword"
+      ? "That link to set a new password has expired or was already used. Tap “Forgot your password?” for a new one."
+      : "That link has expired or was already used. Log in, then tap “Send the link again” if your email still needs confirming.";
+  }
+  // A reload shouldn't use the link twice; the code stays in memory for this visit.
+  history.replaceState(null, "", after);
+}
+if (resetFor) $("reset-email").textContent = resetFor;
+if (confirmFor) {
+  setMode("old");
+  $("email").value = confirmFor;
+  $("signin-title").textContent = "Confirm your email";
+  $("signin-lead").textContent = `Log in to finish confirming ${confirmFor}. Didn't make a Web Burrito account? Ignore the email: nothing happens without the password.`;
+}
+if (linkProblem) $("signin-err").textContent = linkProblem;
+$("reset-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("reset-err").textContent = "";
+  const pw = $("reset-pw").value;
+  if (pw.length < 8) { $("reset-err").textContent = SIGNIN_ERRORS["auth/weak-password"]; return $("reset-pw").focus(); }
+  $("reset-go").disabled = true;
+  try {
+    await fa.confirmPasswordReset(auth, action.code, pw);
+    leaving = true;
+    await fa.signInWithEmailAndPassword(auth, resetFor, pw);
+    location.replace(after);
+  } catch (err) {
+    leaving = false;
+    $("reset-err").textContent = ["auth/expired-action-code", "auth/invalid-action-code"].includes(err.code)
+      ? "That link has expired or was already used. Tap “Forgot your password?” on the log-in page for a new one." : signinError(err);
+    $("reset-go").disabled = false;
+  }
+});
+// Logged in (or just logged in) to the account a confirm link is for: use it, then carry on.
+async function useConfirmLink(user) {
+  leaving = true;
+  try {
+    await fa.applyActionCode(auth, action.code);
+  } catch {
+    await user.reload().catch(() => {});
+    if (!auth.currentUser?.emailVerified) {
+      leaving = false; confirmFor = null;
+      linkProblem = "That link has expired or was already used. Tap “Send the link again” below.";
+      return false;
+    }
+  }
+  await user.reload().catch(() => {});
+  await user.getIdToken(true).catch(() => {});
+  location.replace(after);
+  return true;
+}
 
 // ---------- claiming a preview from its page (webburrito.com/<slug> -> "Make it mine") ----------
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-// From the URL; or, coming back through an emailed sign-in link opened elsewhere, from this browser.
+// From the URL (emailed links keep it: they come back to it afterwards).
 const claimSlug = (() => {
   const s = new URLSearchParams(location.search).get("claim") || "";
-  if (SLUG.test(s)) return s;
-  try {
-    const p = JSON.parse(localStorage.getItem("wb-claim") || "null");
-    if (/[?&]mode=signIn\b/.test(location.search) && p && SLUG.test(p.slug) && Date.now() - p.at < 86400e3) return p.slug;
-  } catch {}
-  return null;
+  return SLUG.test(s) ? s : null;
 })();
 const titleCase = (slug) => slug.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 // How the preview was opened on this device: its personal link's key (the preview page keeps it as
@@ -489,8 +628,8 @@ function pendingCred(slug) {
   try { return { code: sessionStorage.getItem("wb-preview-code") }; } catch { return {}; }
 }
 const forgetClaim = () => { try { localStorage.removeItem("wb-claim"); } catch {} };
-if (claimSlug) {
-  $("claim-link").value = `webburrito.com/${claimSlug}`;
+if (claimSlug) $("claim-link").value = `webburrito.com/${claimSlug}`;
+if (claimSlug && !confirmFor) {
   $("signin-title").textContent = "Make it yours";
   $("signin-lead").textContent = `Sign in to put ${titleCase(claimSlug)}'s website online on your own .com. Takes about 5 minutes.`;
 }
@@ -503,14 +642,25 @@ let draftLoaded = false; // the draft snapshot has arrived (even if there's no d
 let stops = [];
 let working = false;
 
-fa.onAuthStateChanged(auth, (user) => {
+fa.onAuthStateChanged(auth, async (user) => {
   stops.forEach((f) => f());
   stops = [];
   me = null; draft = null; draftLoaded = false; // never act on the previous account's data
+  if (leaving) return; // on the way to the next page
   $("out").hidden = !user;
   $("who").textContent = user?.email || "";
+  if (resetFor) return show("v-reset");
+  if (user && confirmFor) {
+    // The link is for another account than the one logged in here: log out, then in to that one.
+    if (String(user.email || "").toLowerCase() !== confirmFor) return fa.signOut(auth);
+    if (await useConfirmLink(user)) return;
+    $("signin-err").textContent = "";
+  }
   if (!user) return show("v-signin");
+  try { localStorage.setItem("wb-has-account", "1"); } catch {}
   show("v-app");
+  refreshConfirmed();
+  if (linkProblem) { $("confirm-note").textContent = linkProblem; linkProblem = ""; }
   const ref = fs.doc(db, "users", user.uid);
   stops.push(
     fs.onSnapshot(ref, (s) => { me = s.data() || {}; render(); maybeAutoClaim(); }, () => {}),
@@ -518,6 +668,30 @@ fa.onAuthStateChanged(auth, (user) => {
     fs.onSnapshot(fs.query(fs.collection(db, "users", user.uid, "messages"), fs.orderBy("at", "asc"), fs.limitToLast(60)), (s) => renderMsgs(s.docs.map((d) => d.data())), () => {}),
   );
   api("/status").then((r) => { canBuyNow = r.canBuy !== false; render(); }).catch(() => {}); // makes the account, moves a waiting launch forward
+});
+
+// A password account confirms its email by opening the link we sent (maybe in another tab or on
+// their phone). Check again whenever they come back to this page, and get a fresh token once it is.
+const unconfirmed = () => Boolean(auth.currentUser && !auth.currentUser.emailVerified);
+async function refreshConfirmed() {
+  const u = auth.currentUser;
+  if (u && !u.emailVerified) {
+    try { await u.reload(); if (auth.currentUser?.emailVerified) await u.getIdToken(true); } catch {}
+  }
+  render();
+}
+window.addEventListener("focus", () => { if (unconfirmed()) refreshConfirmed(); });
+$("confirm-done").addEventListener("click", async () => {
+  await refreshConfirmed();
+  $("confirm-note").textContent = unconfirmed() ? "Not confirmed yet. Open the link in the email we sent (check spam too), then tap this again." : "";
+});
+$("confirm-again").addEventListener("click", async () => {
+  try {
+    await fa.sendEmailVerification(auth.currentUser, { url: `${location.origin}/app/` });
+    $("confirm-note").textContent = `Sent again to ${auth.currentUser.email}. Check your spam folder too.`;
+  } catch (err) {
+    $("confirm-note").textContent = err.code === "auth/too-many-requests" ? "We just sent one. Wait a minute before asking again." : `Couldn't send it (${err.code || err.message}).`;
+  }
 });
 
 // Came from a preview's "Make it mine": open it once, right after sign-in, as soon as both the
@@ -771,6 +945,10 @@ async function tokenize(c, contact) {
 $("buy-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   $("pay-err").textContent = "";
+  if (unconfirmed()) {
+    $("pay-err").textContent = "Confirm your email first (top of this section).";
+    return $("confirm-box").scrollIntoView({ block: "center" });
+  }
   const f = e.target;
   if (!domainOk) { $("pay-err").textContent = "Check a domain name first."; return $("domain").focus(); }
   const contact = {
@@ -953,6 +1131,8 @@ function render() {
   const open = Boolean(cfg?.ready?.payments && cfg?.ready?.hosting && cfg?.ready?.domains && canBuyNow);
   $("closed").hidden = started || open;
   $("buy-form").hidden = started || !open;
+  $("confirm-box").hidden = !unconfirmed();
+  $("confirm-to").textContent = auth.currentUser?.email || "";
   $("progress").hidden = !started;
   $("test-note").hidden = !cfg?.testMode;
   if (!started && open && hasSite) {

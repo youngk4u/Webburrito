@@ -90,6 +90,11 @@ export const app = PLATFORM_ON ? onRequest(
       if (!body) return fail(res, 400, "Bad request.");
       const user = await signedIn(req, body);
       if (!user) return fail(res, 401, "Please sign in again.");
+      // An account made with a password can build right away, but money, domains and going
+      // live wait until its email is confirmed (Google and email-link sign-ins already are).
+      if (NEEDS_CONFIRMED_EMAIL.has(path) && !user.verified) {
+        return fail(res, 403, `Confirm your email first: open the link we sent to ${user.email}.`, { needsEmail: true });
+      }
       if (path.startsWith("/admin/")) {
         if (!user.admin) return fail(res, 403, "Admins only.");
         const route = ADMIN[path];
@@ -125,6 +130,10 @@ function readJson(req, max) {
   }
 }
 
+// What needs a confirmed email. Everything else (details, building, claiming a preview) works
+// as soon as the account exists. Admins always need one (checked in signedIn).
+const NEEDS_CONFIRMED_EMAIL = new Set(["/domain", "/subscribe", "/publish", "/email", "/card", "/cancel"]);
+
 async function signedIn(req, body) {
   const bearer = /^Bearer\s+(\S+)$/i.exec(req.get("authorization") || "")?.[1];
   const token = bearer || (typeof body._auth === "string" ? body._auth : null);
@@ -132,9 +141,11 @@ async function signedIn(req, body) {
   try {
     const t = await getAuth().verifyIdToken(token);
     const email = String(t.email || "").toLowerCase();
-    if (!email || t.email_verified !== true) return null;
-    const admin = (await db.collection("admins").doc(email).get()).exists;
-    return { uid: t.uid, email, name: text(t.name || "", 80), admin };
+    if (!email) return null;
+    const verified = t.email_verified === true;
+    // Never an admin on an unconfirmed email: anyone can type someone else's address.
+    const admin = verified && (await db.collection("admins").doc(email).get()).exists;
+    return { uid: t.uid, email, name: text(t.name || "", 80), verified, admin };
   } catch {
     return null;
   }

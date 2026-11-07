@@ -2,13 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseLead, FIELDS } from "../lead.js";
 
-const form = { business: "Panadería La Rosa", city: "Columbus, OH", name: "Rosa", phone: "(614) 555-0100", language: "Español", message: "Pan dulce\nOpen 6am", hp_note: "" };
+const form = { business: "Panadería La Rosa", city: "Columbus, OH", name: "Rosa", email: "rosa@example.com", phone: "(614) 555-0100", language: "Español", message: "Pan dulce\nOpen 6am", hp_note: "" };
 
 test("accepts a normal request and keeps accents and line breaks", () => {
   const { lead, spam } = parseLead(form);
   assert.equal(spam, false);
   assert.equal(lead.business, "Panadería La Rosa");
   assert.equal(lead.message, "Pan dulce\nOpen 6am");
+  assert.equal(lead.email, "rosa@example.com");
   assert.equal(lead.internal, false);
 });
 

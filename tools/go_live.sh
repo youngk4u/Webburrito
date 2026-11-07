@@ -123,7 +123,10 @@ if [ "$REAL" = 0 ]; then
   c) Cloudflare: https://dash.cloudflare.com -> add a payment method (Manage account -> Billing),
      open Domain Registration and accept the agreement, and set a default contact there.
   d) Firebase: https://console.firebase.google.com/project/web-burrito/authentication/providers
-     -> Email/Password -> turn on "Email link (passwordless sign-in)" -> Save.
+     -> Email/Password -> turn on "Email/Password" (leave "Email link" off) -> Save.
+     Gear -> Project settings -> Public-facing name: Web Burrito (the name on the account emails).
+     After this script has deployed: Authentication -> Templates -> the pencil on any email ->
+     "Customize action URL" -> https://webburrito.com/app/ -> Save.
 TXT
   pause
 

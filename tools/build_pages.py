@@ -5,8 +5,8 @@ Run from the repo root:  python3 tools/build_pages.py
 Writes: assets/site.css, the industry pages, /industries/, the guide, 404.html, sitemap.xml, robots.txt.
 index.html stays hand-edited; its <style> block is copied to assets/site.css so every page matches.
 """
-import json, os, re, sys, html as H
-from datetime import date
+import hashlib, json, os, re, sys, html as H
+from datetime import date, datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
@@ -14,6 +14,16 @@ from pages import PLANS, INDUSTRIES, GUIDE  # noqa: E402
 
 SITE = "https://webburrito.com"
 TODAY = date.today().isoformat()
+# A page's date (its sitemap lastmod, the guide's "Updated", the legal pages' "Last updated") only
+# moves when something else on the page changes, so rebuilding doesn't claim untouched pages are new.
+DATE_ISO, DATE_LONG = "@@DATE_ISO@@", "@@DATE_LONG@@"
+MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
+def long_date(iso): return date.fromisoformat(iso).strftime("%B %-d, %Y")
+def fill(html, iso): return html.replace(DATE_ISO, iso).replace(DATE_LONG, long_date(iso))
+_sitemap = os.path.join(ROOT, "sitemap.xml")
+OLD_SITEMAP = open(_sitemap, encoding="utf-8").read() if os.path.exists(_sitemap) else ""
+OLD_LASTMOD = dict(re.findall(r"<loc>(.*?)</loc><lastmod>(.*?)</lastmod>", OLD_SITEMAP))
+UPDATED = {}  # path -> the date its content last changed
 PHONE, PHONE_TEL, EMAIL = "(310) 279-8278", "+13102798278", "hello@webburrito.com"
 
 index = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
@@ -78,6 +88,9 @@ open(os.path.join(ROOT, "assets", "site.css"), "w", encoding="utf-8").write(css)
 _i = index.index('<a class="logo'); logo_a = index[_i: index.index("</a>", _i) + 4]
 logo_a = logo_a.replace('href="#top"', 'href="/"')
 footer = index[index.index("<footer>"): index.index("</footer>") + 9]
+# The home page reveals its "Customer log in" link once sign-ups are open; these pages have no
+# script for that, so they leave it out.
+footer = re.sub(r'<a href="/app/\?login" id="login-foot" hidden>[^<]*</a>', "", footer)
 
 def header():
     return f"""<header class="top">
@@ -211,7 +224,22 @@ def cta_band():
 def write(path, html):
     full = os.path.join(ROOT, path.strip("/"), "index.html") if path.endswith("/") else os.path.join(ROOT, path.strip("/"))
     os.makedirs(os.path.dirname(full), exist_ok=True)
-    open(full, "w", encoding="utf-8").write(html)
+    prev = OLD_LASTMOD.get(SITE + path)
+    if os.path.exists(full):
+        old = open(full, encoding="utf-8").read()
+        if DATE_ISO in html or DATE_LONG in html:
+            # The dates it already shows: if the page is the same apart from them, it keeps its date.
+            shown = re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", old) + [
+                datetime.strptime(d, "%B %d, %Y").date().isoformat() for d in re.findall(rf"\b((?:{MONTHS}) \d{{1,2}}, \d{{4}})\b", old)]
+            candidates = [prev] + shown
+        else:
+            candidates = [prev or TODAY]
+        for iso in candidates:
+            if iso and fill(html, iso) == old:
+                UPDATED[path] = iso
+                return
+    UPDATED[path] = TODAY
+    open(full, "w", encoding="utf-8").write(fill(html, TODAY))
 
 # ---------- industry pages ----------
 for ind in INDUSTRIES:
@@ -317,7 +345,7 @@ path = f"/{g['slug']}/"
 trail = [("Home", "/"), ("Guides", None), ("Website cost", path)]
 trail_ld = [("Home", "/"), ("Website cost", path)]
 article = {"@type": "Article", "@id": SITE + path + "#article", "headline": g["h1"], "description": g["desc"],
-           "datePublished": g["date"], "dateModified": TODAY, "image": SITE + "/og.jpg",
+           "datePublished": g["date"], "dateModified": DATE_ISO, "image": SITE + "/og.jpg",
            "author": {"@type": "Organization", "name": "Web Burrito", "url": SITE + "/"}, "publisher": ORG_REF,
            "mainEntityOfPage": SITE + path}
 ld = [ORG, article, crumbs_ld(trail_ld)]
@@ -335,7 +363,7 @@ page = head(g["title"], g["desc"], path, ld, og_type="article") + f"""<section c
 <section class="band" style="padding-top:3rem">
   <div class="wrap">
     <article class="prose">
-      <p class="meta">By Web Burrito · Updated {date.fromisoformat(TODAY).strftime('%B %-d, %Y')}</p>
+      <p class="meta">By Web Burrito · Updated {DATE_LONG}</p>
 {body}
     </article>
   </div>
@@ -363,7 +391,7 @@ for slug, h1, desc, src in LEGAL:
 <section class="band" style="padding-top:3rem">
   <div class="wrap">
     <article class="prose">
-      <p class="meta">Last updated {date.fromisoformat(TODAY).strftime('%B %-d, %Y')}</p>
+      <p class="meta">Last updated {DATE_LONG}</p>
 {body}
     </article>
   </div>
@@ -388,9 +416,13 @@ open(os.path.join(ROOT, "404.html"), "w", encoding="utf-8").write(page)
 
 # ---------- sitemap + robots ----------
 urls = ["/", "/industries/"] + [f"/{o['slug']}/" for o in INDUSTRIES] + [f"/{g['slug']}/"] + [f"/{l[0]}/" for l in LEGAL]
-sm = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+# The home page is hand-edited: a fingerprint of it in the sitemap tells the next build whether it changed.
+home = hashlib.sha256(index.encode("utf-8")).hexdigest()[:16]
+same_home = re.search(r"<!-- home page (\w+) -->", OLD_SITEMAP)
+UPDATED["/"] = OLD_LASTMOD.get(SITE + "/", TODAY) if same_home and same_home.group(1) == home else TODAY
+sm = ['<?xml version="1.0" encoding="UTF-8"?>', f"<!-- home page {home} -->", '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
 for u in urls:
-    sm.append(f"  <url><loc>{SITE}{u}</loc><lastmod>{TODAY}</lastmod></url>")
+    sm.append(f"  <url><loc>{SITE}{u}</loc><lastmod>{UPDATED.get(u, TODAY)}</lastmod></url>")
 sm.append("</urlset>")
 open(os.path.join(ROOT, "sitemap.xml"), "w").write("\n".join(sm) + "\n")
 open(os.path.join(ROOT, "robots.txt"), "w").write(f"User-agent: *\nAllow: /\n\nSitemap: {SITE}/sitemap.xml\n")

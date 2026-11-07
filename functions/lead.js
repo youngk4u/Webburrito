@@ -2,7 +2,7 @@
 
 // Longest value kept for each form field. Longer text is cut, not rejected, so a
 // real request is never lost over length.
-export const FIELDS = { business: 120, city: 80, name: 80, phone: 40, language: 20, message: 2000 };
+export const FIELDS = { business: 120, city: 80, name: 80, email: 120, phone: 40, language: 20, message: 2000 };
 
 const ID = /^[A-Za-z0-9_-]{8,40}$/;
 const REF = /^[A-Za-z0-9_.-]{1,40}$/;

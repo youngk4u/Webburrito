@@ -23,7 +23,7 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
-body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:#fff}
 .wrap{max-width:1140px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 h1,h2,h3{margin:0;text-wrap:balance}
@@ -53,7 +53,11 @@ footer .logo{color:#fff}
 .nav a:hover{color:#E23B2E}
 .nav .btn{min-height:42px;padding:.45rem 1rem;font-size:.92rem;white-space:nowrap;border-color:#1B1714;background:var(--wall);color:#1B1714}
 .nav .btn:hover{box-shadow:none;transform:translateY(-1px)}
-@media (max-width:760px){.nav a:not(.btn){display:none}}
+#login-link{white-space:nowrap}
+@media (max-width:760px){.nav{gap:1rem}.nav a:not(.btn):not(#login-link){display:none}}
+@media (max-width:420px){.top .wrap{gap:.6rem}.nav{gap:.8rem;font-size:.9rem}.nav .btn{min-height:40px;padding:.4rem .85rem;font-size:.86rem}}
+@media (max-width:374px){.top .logo.pill{font-size:.9rem;padding:.24rem .75rem .2rem}}
+@media (max-width:339px){#login-link{display:none}}
 
 /* Hero */
 .hero{background:var(--wall);color:#1B1714;position:relative;overflow:hidden;border-bottom:4px solid #1B1714}
@@ -205,6 +209,9 @@ form.ticket label{display:grid;gap:.35rem;font-weight:700;font-size:.92rem}
 form.ticket input,form.ticket select,form.ticket textarea{font:inherit;font-size:1rem;padding:.75rem .9rem;border-radius:10px;border:2px solid #D9CDB8;background:#fff;color:#1B1714;min-height:48px;width:100%}
 form.ticket textarea{min-height:96px;resize:vertical}
 form.ticket .small{font-size:.85rem;color:#6B5E4C}
+form.ticket .opt{font-weight:400;color:#6B5E4C;font-size:.85rem}
+form.ticket #f-reach-err{color:#B4271B;font-weight:700}
+form.ticket input[aria-invalid="true"]{border-color:#B4271B}
 .ok{display:none;background:#FFF3C4;border-radius:10px;padding:1rem;font-weight:700}
 .ok.show{display:block}
 .ticket .fail{background:#FDE3E0;color:#1B1714;border-radius:10px;padding:1rem;font-weight:700}

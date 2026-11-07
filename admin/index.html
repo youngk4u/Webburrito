@@ -550,11 +550,12 @@ function renderLeads() {
       h("span", { class: "what" }, l.business, l.city ? h("span", { class: "muted", style: "font-weight:600" }, ` · ${l.city}`) : null,
         done ? null : h("span", { class: "pill bad" }, "new"), l.internal ? h("span", { class: "pill me" }, "you") : null),
       h("span", { class: "when", title: toDate(l.createdAt) ? fullDate.format(toDate(l.createdAt)) : "" }, ago(l.createdAt)),
-      h("span", { class: "meta" }, [l.name, l.phone, l.language].filter(Boolean).join(" · ") || "No name or phone given"),
+      h("span", { class: "meta" }, [l.name, l.email, l.phone, l.language].filter(Boolean).join(" · ") || "No name, email or phone given"),
       l.message ? h("p", { class: "msg" }, l.message) : null,
       h("span", { class: "acts" },
         digits.length >= 7 ? h("a", { href: `tel:${digits}` }, "Call") : null,
         digits.length >= 7 ? h("a", { href: `sms:${digits}` }, "Text") : null,
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(l.email || "") ? h("a", { href: `mailto:${l.email}?subject=${encodeURIComponent(`Your free website preview: ${l.business}`)}` }, "Email") : null,
         h("button", { type: "button", class: "ghost", onclick: (e) => {
           e.target.disabled = true;
           updateDoc(doc(db, "leads", l.id), { status: done ? "new" : "done" })
